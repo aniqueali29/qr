@@ -1,0 +1,171 @@
+/**
+ * Responsive Button Styles for Admin Panel
+ * Ensures buttons are fully responsive across all screen sizes
+ */
+
+/* Responsive button container */
+.btn-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+@media (min-width: 576px) {
+    .btn-container {
+        flex-direction: row;
+    }
+}
+
+/* Button responsive behavior */
+.btn-responsive {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: all 0.3s ease;
+}
+
+/* Mobile button adjustments (phones) */
+@media (max-width: 575.98px) {
+    .btn-responsive {
+        width: 100%;
+        margin-bottom: 0.25rem;
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    .btn-responsive:last-child {
+        margin-bottom: 0;
+    }
+    
+    /* Stack buttons vertically on mobile */
+    .btn-container {
+        flex-direction: column;
+    }
+}
+
+/* Small tablets and up */
+@media (min-width: 576px) {
+    .btn-responsive {
+        flex: 1;
+        margin-right: 0.5rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .btn-responsive:last-child {
+        margin-right: 0;
+    }
+}
+
+/* Medium screens and up */
+@media (min-width: 768px) {
+    .btn-responsive {
+        padding: 0.5rem 1rem;
+    }
+    
+    .btn-responsive .btn-text {
+        display: inline;
+    }
+}
+
+/* Large screens - full text always visible */
+@media (min-width: 992px) {
+    .btn-responsive {
+        padding: 0.5rem 1.25rem;
+        font-size: 1rem;
+    }
+    
+    .btn-responsive .btn-text {
+        display: inline !important;
+    }
+}
+
+/* Extra large screens */
+@media (min-width: 1200px) {
+    .btn-responsive {
+        padding: 0.6rem 1.5rem;
+    }
+}
+
+/* Button text visibility controls */
+.btn-responsive .btn-text {
+    display: inline;
+}
+
+/* Hide text on very small screens */
+@media (max-width: 575.98px) {
+    .btn-responsive .btn-text {
+        display: inline;
+    }
+}
+
+/* Hide text on small screens, show icons only */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .btn-responsive .btn-text {
+        display: none;
+    }
+}
+
+/* Show text on medium screens and up */
+@media (min-width: 768px) {
+    .btn-responsive .btn-text {
+        display: inline;
+    }
+}
+
+/* Responsive card header */
+.card-header .row {
+    margin: 0;
+}
+
+.card-header .col-12 {
+    padding: 0;
+}
+
+/* Responsive form controls */
+@media (max-width: 575.98px) {
+    .form-select,
+    .form-control {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    .d-flex.flex-sm-row {
+        flex-direction: column !important;
+    }
+}
+
+/* Button hover effects */
+.btn-responsive:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-responsive:active {
+    transform: translateY(0);
+}
+
+/* Icon spacing */
+.btn-responsive i {
+    margin-right: 0.25rem;
+}
+
+@media (min-width: 576px) {
+    .btn-responsive i {
+        margin-right: 0.5rem;
+    }
+}
+
+/* Ensure buttons don't break on very small screens */
+@media (max-width: 320px) {
+    .btn-responsive {
+        font-size: 0.8rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .btn-responsive i {
+        margin-right: 0.125rem;
+    }
+}

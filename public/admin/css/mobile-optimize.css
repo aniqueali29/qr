@@ -1,0 +1,291 @@
+/**
+ * Mobile Optimization
+ * Enhanced responsive design for mobile devices
+ */
+
+/* Mobile-First Button Accessibility */
+@media (max-width: 576px) {
+    /* Toolbar Buttons - Full Width on Mobile */
+    .card-header .d-flex.flex-wrap {
+        flex-direction: column !important;
+    }
+
+    .card-header .d-flex.flex-wrap.gap-2 {
+        gap: 0.75rem !important;
+    }
+
+    .card-header .btn {
+        width: 100% !important;
+        justify-content: center;
+        min-height: 44px; /* Touch-friendly */
+        font-size: 1rem;
+    }
+
+    .card-header .btn .btn-text {
+        display: inline !important;
+    }
+
+    .card-header .btn i {
+        font-size: 1.25rem;
+    }
+
+    /* Table Responsive */
+    .table-responsive {
+        border: none;
+        margin: 0 -1rem;
+    }
+
+    .table {
+        font-size: 0.875rem;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.75rem 0.5rem;
+        white-space: nowrap;
+    }
+
+    /* Hide less important columns on mobile */
+    .table th:nth-child(n+5),
+    .table td:nth-child(n+5) {
+        display: none;
+    }
+
+    .table th:last-child,
+    .table td:last-child {
+        display: table-cell; /* Always show actions */
+    }
+
+    /* Filter Panel - Stack Vertically */
+    #filter-panel .row.g-3 {
+        margin: 0;
+    }
+
+    #filter-panel .col-md-3,
+    #filter-panel .col-md-4,
+    #filter-panel .col-md-6,
+    #filter-panel .col-md-9 {
+        width: 100%;
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    #filter-panel .form-label {
+        font-size: 0.875rem;
+        margin-bottom: 0.25rem;
+    }
+
+    #filter-panel .form-select,
+    #filter-panel .form-control {
+        font-size: 1rem;
+        min-height: 44px;
+    }
+
+    /* Modal Full Screen on Mobile */
+    .modal-dialog {
+        margin: 0;
+        max-width: 100%;
+    }
+
+    .modal-content {
+        min-height: 100vh;
+        border-radius: 0;
+    }
+
+    .modal-body {
+        padding: 1rem;
+    }
+
+    /* Form Inputs - Larger Touch Targets */
+    .form-control,
+    .form-select {
+        min-height: 44px;
+        font-size: 1rem;
+    }
+
+    .btn {
+        min-height: 44px;
+        font-size: 1rem;
+    }
+
+    /* Pagination */
+    .pagination {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .pagination .page-item {
+        margin: 0.25rem;
+    }
+
+    .pagination .page-link {
+        padding: 0.5rem 0.75rem;
+        min-width: 44px;
+        text-align: center;
+    }
+
+    /* Cards */
+    .card {
+        margin-bottom: 1rem;
+    }
+
+    .card-header {
+        padding: 1rem;
+    }
+
+    .card-body {
+        padding: 1rem;
+    }
+
+    /* Stats Cards */
+    .col-md-3.col-6.mb-3 {
+        width: 50%;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+
+    .card-body.text-center h3 {
+        font-size: 1.5rem;
+    }
+
+    .card-body.text-center small {
+        font-size: 0.75rem;
+    }
+
+    /* Bulk Actions */
+    .bulk-actions {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        padding: 1rem;
+        z-index: 1000;
+    }
+
+    .bulk-actions .btn-sm {
+        font-size: 0.875rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .bulk-actions .bulk-btn-text {
+        display: none;
+    }
+
+    /* Charts */
+    canvas {
+        max-height: 300px !important;
+    }
+
+    .row .col-md-8,
+    .row .col-md-4,
+    .row .col-md-6 {
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+
+    /* Sidebar - Hide on Mobile */
+    .layout-menu {
+        transform: translateX(-100%);
+    }
+
+    .layout-menu.show {
+        transform: translateX(0);
+    }
+
+    /* Content - Full Width */
+    .layout-page {
+        padding: 0;
+    }
+
+    .container-xxl {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    /* Navbar */
+    .layout-navbar {
+        padding: 0.5rem 1rem;
+    }
+
+    .navbar-brand {
+        font-size: 1rem;
+    }
+
+    /* Breadcrumb */
+    .breadcrumb {
+        font-size: 0.875rem;
+        padding: 0.5rem 0;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Hide tooltips on mobile */
+    .tooltip {
+        display: none !important;
+    }
+}
+
+/* Tablet Optimization */
+@media (min-width: 577px) and (max-width: 768px) {
+    .card-header .btn {
+        min-width: 120px;
+    }
+
+    .table th:nth-child(n+6),
+    .table td:nth-child(n+6) {
+        display: none;
+    }
+
+    .table th:last-child,
+    .table td:last-child {
+        display: table-cell;
+    }
+}
+
+/* Landscape Mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+    .modal-content {
+        max-height: 100vh;
+        overflow-y: auto;
+    }
+
+    #filter-panel {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+}
+
+/* Touch-Friendly Improvements */
+@media (hover: none) and (pointer: coarse) {
+    /* Larger touch targets */
+    a, button, .btn, input, select, textarea {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    /* Remove hover effects */
+    .table-hover tbody tr:hover {
+        background-color: inherit;
+    }
+
+    /* Increase spacing */
+    .list-group-item {
+        padding: 1rem;
+    }
+
+    /* Better tap feedback */
+    button:active,
+    .btn:active {
+        transform: scale(0.98);
+    }
+}
+
+/* Print Media Query Override */
+@media print {
+    /* Show all columns when printing */
+    .table th,
+    .table td {
+        display: table-cell !important;
+    }
+}

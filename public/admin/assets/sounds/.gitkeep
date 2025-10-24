@@ -1,0 +1,13 @@
+# Sound Effects Directory
+
+This directory contains audio feedback files for the scanner interface:
+
+- success.mp3 - Pleasant chime for successful check-in
+- checkout.mp3 - Different tone for successful check-out
+- error.mp3 - Subtle alert for validation errors
+- warning.mp3 - Neutral beep for duplicate scans
+
+## Note
+Placeholder files are included. Replace with actual sound effects for production use.
+Each file should be ~0.5-1 second duration and <50KB file size.
+

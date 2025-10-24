@@ -1,0 +1,321 @@
+/**
+ * Print Styles
+ * Optimized layouts for printing
+ */
+
+@media print {
+    /* Reset and Clean */
+    * {
+        color: #000 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
+    /* Page Setup */
+    @page {
+        margin: 1.5cm;
+        size: A4;
+    }
+
+    body {
+        font-size: 12pt;
+        line-height: 1.5;
+    }
+
+    /* Hide Non-Essential Elements */
+    .layout-menu,
+    .layout-navbar,
+    .breadcrumb,
+    .btn,
+    button,
+    .card-header .d-flex,
+    .pagination,
+    .bulk-actions,
+    #filter-panel,
+    .modal,
+    .toast-container,
+    .loading-overlay,
+    .navbar,
+    .sidebar,
+    footer,
+    .no-print {
+        display: none !important;
+    }
+
+    /* Layout */
+    .layout-page,
+    .content-wrapper,
+    .container-xxl {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .card {
+        border: 1px solid #000 !important;
+        margin-bottom: 1cm;
+        page-break-inside: avoid;
+    }
+
+    .card-header {
+        background: #f5f5f5 !important;
+        border-bottom: 2px solid #000 !important;
+        padding: 0.5cm !important;
+    }
+
+    .card-title {
+        font-size: 14pt;
+        font-weight: bold;
+        margin: 0;
+    }
+
+    .card-body {
+        padding: 0.5cm !important;
+    }
+
+    /* Tables */
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        page-break-inside: auto;
+    }
+
+    thead {
+        display: table-header-group;
+    }
+
+    tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+
+    th, td {
+        border: 1px solid #000 !important;
+        padding: 0.3cm !important;
+        text-align: left;
+    }
+
+    th {
+        background: #f5f5f5 !important;
+        font-weight: bold;
+        font-size: 10pt;
+    }
+
+    td {
+        font-size: 9pt;
+    }
+
+    /* Show all table columns */
+    .table th,
+    .table td {
+        display: table-cell !important;
+    }
+
+    /* Hide action columns */
+    .table th:last-child,
+    .table td:last-child {
+        display: none !important;
+    }
+
+    /* Hide checkboxes */
+    input[type="checkbox"],
+    .bulk-checkbox-column {
+        display: none !important;
+    }
+
+    /* Headers and Footers */
+    h1, h2, h3, h4, h5, h6 {
+        page-break-after: avoid;
+        page-break-inside: avoid;
+    }
+
+    h1 {
+        font-size: 18pt;
+        margin-bottom: 0.5cm;
+    }
+
+    h2, .card-title {
+        font-size: 14pt;
+        margin-bottom: 0.3cm;
+    }
+
+    h3 {
+        font-size: 12pt;
+        margin-bottom: 0.3cm;
+    }
+
+    /* Links */
+    a {
+        text-decoration: none;
+    }
+
+    a[href]:after {
+        content: " (" attr(href) ")";
+        font-size: 8pt;
+        color: #666 !important;
+    }
+
+    a[href^="#"]:after,
+    a[href^="javascript:"]:after {
+        content: "";
+    }
+
+    /* Badges and Labels */
+    .badge {
+        border: 1px solid #000 !important;
+        padding: 2px 6px !important;
+        border-radius: 0 !important;
+    }
+
+    /* Stats Cards */
+    .row .col-md-3,
+    .row .col-md-4,
+    .row .col-md-6 {
+        width: 25% !important;
+        float: left;
+        page-break-inside: avoid;
+    }
+
+    .card.bg-label-primary,
+    .card.bg-label-success,
+    .card.bg-label-warning,
+    .card.bg-label-info {
+        background: #f9f9f9 !important;
+    }
+
+    /* Charts - Hide (can't print canvas easily) */
+    canvas {
+        display: none !important;
+    }
+
+    /* Print-Specific Classes */
+    .print-only {
+        display: block !important;
+    }
+
+    .print-header {
+        margin-bottom: 1cm;
+        border-bottom: 2px solid #000;
+        padding-bottom: 0.5cm;
+    }
+
+    .print-footer {
+        margin-top: 1cm;
+        border-top: 1px solid #000;
+        padding-top: 0.3cm;
+        font-size: 8pt;
+        text-align: center;
+    }
+
+    /* Page Numbers */
+    .page-number:after {
+        content: counter(page);
+    }
+
+    /* Avoid Breaks */
+    .avoid-break {
+        page-break-inside: avoid;
+    }
+
+    /* Force Page Break */
+    .page-break {
+        page-break-before: always;
+    }
+
+    /* Widows and Orphans */
+    p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+    }
+
+    /* Progress Bars */
+    .progress {
+        border: 1px solid #000 !important;
+        height: 20px !important;
+    }
+
+    .progress-bar {
+        background: #666 !important;
+        position: relative;
+    }
+
+    .progress-bar:after {
+        content: attr(style);
+        position: absolute;
+        right: 5px;
+        color: #000 !important;
+        font-size: 8pt;
+    }
+
+    /* Form Elements (if printing forms) */
+    input[type="text"],
+    input[type="email"],
+    input[type="number"],
+    select,
+    textarea {
+        border: 1px solid #000 !important;
+        border-radius: 0 !important;
+        padding: 0.2cm !important;
+    }
+
+    /* Specific Component Fixes */
+    
+    /* Reports Page */
+    #report-generator {
+        display: none !important;
+    }
+
+    .report-stats {
+        display: block !important;
+    }
+
+    /* Student List */
+    #students-table {
+        font-size: 8pt !important;
+    }
+
+    #students-table th,
+    #students-table td {
+        padding: 0.2cm !important;
+    }
+
+    /* Attendance Table */
+    #attendance-table {
+        font-size: 8pt !important;
+    }
+
+    /* QR Codes - Make Printable */
+    img.qr-code {
+        max-width: 3cm !important;
+        height: auto !important;
+        page-break-inside: avoid;
+    }
+
+    /* Print Title (Auto-generated) */
+    body:before {
+        content: "QR Attendance System - Printed Report";
+        display: block;
+        font-size: 16pt;
+        font-weight: bold;
+        margin-bottom: 1cm;
+        text-align: center;
+    }
+
+    /* Print Date */
+    body:after {
+        content: "Printed on: " attr(data-print-date);
+        display: block;
+        font-size: 8pt;
+        text-align: right;
+        margin-top: 0.5cm;
+    }
+}
+
+/* Print Preview Styles (when using print preview) */
+@media screen {
+    .print-only {
+        display: none;
+    }
+}

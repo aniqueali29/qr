@@ -1,0 +1,66 @@
+{
+    "timestamp": "2025-10-12 04:39:59",
+    "students": [
+        {
+            "id": 103,
+            "student_id": "22-SWT-01",
+            "name": "Anique Ali",
+            "email": "aniqueali000@gmail.com",
+            "phone": "+923010020668",
+            "user_id": 14,
+            "is_active": 1,
+            "created_at": "2025-10-11 17:40:18",
+            "updated_at": "2025-10-11 17:40:18",
+            "admission_year": null,
+            "current_year": 1,
+            "shift": "Morning",
+            "program": null,
+            "last_year_update": null,
+            "is_graduated": 0
+        },
+        {
+            "id": 105,
+            "student_id": "22-SWT-02",
+            "name": "moin",
+            "email": "moiz@gmail.com",
+            "phone": "+50703010020668",
+            "user_id": 15,
+            "is_active": 1,
+            "created_at": "2025-10-11 17:49:36",
+            "updated_at": "2025-10-11 17:49:36",
+            "admission_year": null,
+            "current_year": 1,
+            "shift": "Morning",
+            "program": null,
+            "last_year_update": null,
+            "is_graduated": 0
+        },
+        {
+            "id": 106,
+            "student_id": "22-ESWT-02",
+            "name": "Anique",
+            "email": "aniqueali29@gmail.com",
+            "phone": "+920010020668",
+            "user_id": 16,
+            "is_active": 1,
+            "created_at": "2025-10-12 02:21:27",
+            "updated_at": "2025-10-12 02:27:43",
+            "admission_year": null,
+            "current_year": 1,
+            "shift": "Morning",
+            "program": null,
+            "last_year_update": null,
+            "is_graduated": 0
+        },
+        {
+            "student_id": "24-ESWT-01",
+            "name": "Anique Ali",
+            "email": "admin@gmail.com",
+            "phone": "+923010020668",
+            "created_at": "2025-10-12 04:39:59",
+            "created_by": "admin",
+            "password": "@zZb81fCTywX"
+        }
+    ],
+    "attendance": []
+}

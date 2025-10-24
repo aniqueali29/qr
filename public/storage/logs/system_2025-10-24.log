@@ -1,0 +1,21 @@
+[2025-10-24 00:40:31] [ERROR] PHP Error: Undefined variable $pdo in C:\xampp\htdocs\qr_attendance\public\api\time_validator_api.php on line 195
+[2025-10-24 00:40:31] [ERROR] Uncaught Exception: Call to a member function prepare() on null
+[2025-10-24 00:40:31] [ERROR] PHP Error: Undefined array key "checkout_start" in C:\xampp\htdocs\qr_attendance\public\api\checkin_api.php on line 471
+[2025-10-24 00:40:31] [ERROR] PHP Error: Undefined array key "checkout_end" in C:\xampp\htdocs\qr_attendance\public\api\checkin_api.php on line 471
+[2025-10-24 00:40:31] [ERROR] PHP Error: Undefined variable $pdo in C:\xampp\htdocs\qr_attendance\public\api\time_validator_api.php on line 195
+[2025-10-24 00:40:31] [ERROR] Uncaught Exception: Call to a member function prepare() on null
+[2025-10-24 00:40:33] [ERROR] PHP Error: Undefined variable $pdo in C:\xampp\htdocs\qr_attendance\public\api\time_validator_api.php on line 195
+[2025-10-24 00:40:33] [ERROR] Uncaught Exception: Call to a member function prepare() on null
+[2025-10-24 00:40:33] [ERROR] PHP Error: Undefined array key "checkout_start" in C:\xampp\htdocs\qr_attendance\public\api\checkin_api.php on line 471
+[2025-10-24 00:40:33] [ERROR] PHP Error: Undefined array key "checkout_end" in C:\xampp\htdocs\qr_attendance\public\api\checkin_api.php on line 471
+[2025-10-24 00:43:18] [ERROR] PHP Error: Undefined variable $pdo in C:\xampp\htdocs\qr_attendance\public\api\time_validator_api.php on line 195
+[2025-10-24 00:43:18] [ERROR] Uncaught Exception: Call to a member function prepare() on null
+[2025-10-24 00:43:18] [ERROR] PHP Error: Undefined array key "checkout_start" in C:\xampp\htdocs\qr_attendance\public\api\checkin_api.php on line 471
+[2025-10-24 00:43:18] [ERROR] PHP Error: Undefined array key "checkout_end" in C:\xampp\htdocs\qr_attendance\public\api\checkin_api.php on line 471
+[2025-10-24 00:43:18] [ERROR] PHP Error: Undefined variable $pdo in C:\xampp\htdocs\qr_attendance\public\api\time_validator_api.php on line 195
+[2025-10-24 00:43:18] [ERROR] Uncaught Exception: Call to a member function prepare() on null
+[2025-10-24 00:43:20] [ERROR] PHP Error: Undefined variable $pdo in C:\xampp\htdocs\qr_attendance\public\api\time_validator_api.php on line 195
+[2025-10-24 00:43:20] [ERROR] Uncaught Exception: Call to a member function prepare() on null
+[2025-10-24 00:43:20] [ERROR] PHP Error: Undefined array key "checkout_start" in C:\xampp\htdocs\qr_attendance\public\api\checkin_api.php on line 471
+[2025-10-24 00:43:20] [ERROR] PHP Error: Undefined array key "checkout_end" in C:\xampp\htdocs\qr_attendance\public\api\checkin_api.php on line 471
+[2025-10-24 00:47:57] [ERROR] PHP Error: session_start(): Session cannot be started after headers have already been sent in C:\xampp\htdocs\qr_attendance\public\api\config.php on line 284

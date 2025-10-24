@@ -1,0 +1,146 @@
+/**
+ * Advanced Search Styles
+ */
+
+/* Search Modal - Match Theme */
+#advancedSearchModal .modal-content {
+    border-radius: 0.5rem;
+}
+
+#advancedSearchModal .modal-header {
+    border-bottom: 1px solid rgba(67, 89, 113, 0.1);
+}
+
+#advancedSearchModal .modal-title {
+    font-weight: 600;
+}
+
+#advancedSearchModal #globalSearchInput {
+    font-size: 1.125rem;
+}
+
+#advancedSearchModal #globalSearchInput:focus {
+    box-shadow: 0 0.125rem 0.25rem rgba(67, 89, 113, 0.12);
+    border-color: #696cff;
+}
+
+#advancedSearchModal .input-group-text {
+    background: transparent;
+    border-right: 0;
+}
+
+#advancedSearchModal .form-control {
+    border-left: 0;
+}
+
+#advancedSearchModal .form-control:focus {
+    border-left: 0;
+}
+
+/* Keyboard shortcut hints */
+#advancedSearchModal kbd {
+    background: #f5f5f9;
+    border: 1px solid #dbdade;
+    border-radius: 0.25rem;
+    padding: 2px 6px;
+    font-family: monospace;
+    font-size: 0.75rem;
+    box-shadow: 0 2px 0 #dbdade;
+    margin: 0 2px;
+}
+
+/* Search Filters */
+.search-filters .btn-outline-primary {
+    border-color: rgba(105, 108, 255, 0.16);
+}
+
+.search-filters .btn-check:checked + .btn-outline-primary {
+    background: #696cff;
+    border-color: #696cff;
+    color: white;
+}
+
+/* Search Results */
+.search-results {
+    max-height: 400px;
+    overflow-y: auto;
+    border-radius: 0.375rem;
+}
+
+.search-result-item {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(67, 89, 113, 0.1);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 0.375rem;
+}
+
+.search-result-item:hover,
+.search-result-item.active {
+    background: rgba(105, 108, 255, 0.08);
+    border-left: 3px solid #696cff;
+    padding-left: calc(1rem - 3px);
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-item h6 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.search-result-item mark {
+    background: #fff3cd;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-weight: 600;
+}
+
+.search-result-item small {
+    font-size: 0.8125rem;
+    color: #a1acb8;
+}
+
+/* Badge colors */
+.badge.bg-label-student { background: rgba(105, 108, 255, 0.12) !important; color: #696cff; }
+.badge.bg-label-program { background: rgba(3, 195, 236, 0.12) !important; color: #03c3ec; }
+.badge.bg-label-section { background: rgba(255, 171, 0, 0.12) !important; color: #ffab00; }
+.badge.bg-label-attendance { background: rgba(113, 221, 55, 0.12) !important; color: #71dd37; }
+
+/* Scrollbar */
+.search-results::-webkit-scrollbar {
+    width: 6px;
+}
+
+.search-results::-webkit-scrollbar-track {
+    background: rgba(67, 89, 113, 0.05);
+    border-radius: 10px;
+}
+
+.search-results::-webkit-scrollbar-thumb {
+    background: #696cff;
+    border-radius: 10px;
+}
+
+.search-results::-webkit-scrollbar-thumb:hover {
+    background: #5f61e6;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+    #advancedSearchModal .modal-dialog {
+        margin: 0.5rem;
+    }
+
+    .search-filters .btn-group {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .search-filters .btn {
+        flex: 1 0 50%;
+    }
+}

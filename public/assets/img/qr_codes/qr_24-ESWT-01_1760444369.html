@@ -1,0 +1,39 @@
+
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    margin: 0; 
+                    padding: 10px; 
+                    font-family: Arial, sans-serif; 
+                    background: white; 
+                    width: 240px; 
+                    height: 240px; 
+                    overflow: hidden;
+                }
+                .qr-container { 
+                    width: 220px; 
+                    height: 220px; 
+                    border: 2px solid #000; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    background: white;
+                    margin: 0 auto;
+                }
+                .qr-image { 
+                    width: 200px; 
+                    height: 200px; 
+                    border: 1px solid #ccc;
+                    display: block;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="qr-container">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=24-ESWT-01" alt="QR Code" class="qr-image" />
+            </div>
+        </body>
+        </html>
