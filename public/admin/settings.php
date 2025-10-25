@@ -311,6 +311,15 @@ include 'partials/navbar.php';
                                         </select>
                                         <div class="form-text">When the academic year starts</div>
                                     </div>
+                                    
+                                    <div class="col-12">
+                                        <label for="max_program_years" class="form-label">Program Duration (Years)</label>
+                                        <select class="form-select" id="max_program_years">
+                                            <option value="3">3 Years</option>
+                                            <option value="4" selected>4 Years</option>
+                                        </select>
+                                        <div class="form-text">Maximum years in program before graduation</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -345,6 +354,34 @@ include 'partials/navbar.php';
                                         </div>
                                         <div class="form-text">Automatically mark students as absent at specified times</div>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Student Promotion -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card border-primary">
+                            <div class="card-header bg-label-primary">
+                                <h5 class="card-title mb-0">
+                                    <i class="bx bx-trending-up me-2"></i>Student Promotion Management
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info mb-3 mt-2">
+                                    <i class="bx bx-info-circle me-2"></i>
+                                    <strong>Annual Student Promotion:</strong> Promote all students to the next year level at the end of academic year (after 11 months).
+                                </div>
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <h6 class="mb-1">Bulk Student Promotion</h6>
+                                        <p class="text-muted mb-0 small">Promote all students to next year or mark final year students as graduated</p>
+                                    </div>
+                                    <a href="promote_students.php" class="btn btn-primary">
+                                        <i class="bx bx-trending-up me-1"></i> Manage Promotions
+                                    </a>
                                 </div>
                             </div>
                         </div>

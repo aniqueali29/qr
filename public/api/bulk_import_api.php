@@ -464,7 +464,7 @@ function createStudentFromImport($pdo, $student, $row_number) {
         
         $stmt->execute([
             $student_id, $name, $email, $phone, $user_id, $program, $shift, $year_level, $section_name, 
-            $section_id, $admission_year, $roll_prefix, $username, $password
+            $section_id, $admission_year, $roll_prefix, $username, $password_hash  // Use hashed password
         ]);
         
         // Legacy sync removed

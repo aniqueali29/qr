@@ -1,0 +1,13 @@
+[2025-10-24 16:24:11] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_FAILED: User: 25-SWT-599, IP: ::1, Reason: Invalid password
+[2025-10-24 16:24:31] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_FAILED: User: 25-SWT-599, IP: ::1, Reason: Invalid password
+[2025-10-24 16:24:43] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_FAILED: User: 25-SWT-599, IP: ::1, Reason: Invalid password
+[2025-10-24 16:25:22] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_FAILED: User: 24-ESWT-01, IP: ::1, Reason: Invalid password
+[2025-10-24 16:27:39] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_FAILED: User: 24-ESWT-01, IP: ::1, Reason: Invalid password
+[2025-10-24 16:28:51] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_SUCCESS: User: 24-ESWT-01, IP: ::1
+[2025-10-24 16:29:08] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_SUCCESS: User: 24-ESWT-01, IP: ::1
+[2025-10-24 16:59:43] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_SUCCESS: User: 25-SWT-330, IP: ::1
+[2025-10-24 16:59:55] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_SUCCESS: User: 25-SWT-330, IP: ::1
+[2025-10-24 17:07:36] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_SUCCESS: User: 25-SWT-330, IP: ::1
+[2025-10-24 17:07:39] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_SUCCESS: User: 25-SWT-330, IP: ::1
+[2025-10-24 17:17:06] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_SUCCESS: User: 25-SWT-330, IP: ::1
+[2025-10-24 18:46:30] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_SUCCESS: User: 25-SWT-330, IP: ::1

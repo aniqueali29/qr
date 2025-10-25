@@ -372,10 +372,7 @@ include 'partials/navbar.php';
                             <label for="student-year" class="form-label">Year Level *</label>
                             <select id="student-year" name="year_level" class="form-select" required>
                                 <option value="">Select Year</option>
-                                <option value="1st">1st Year</option>
-                                <option value="2nd">2nd Year</option>
-                                <option value="3rd">3rd Year</option>
-                                <option value="Completed">Completed</option>
+                                <!-- Options will be populated dynamically based on max_program_years setting -->
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -1488,12 +1485,76 @@ let currentFilters = {};
 let deleteStudentId = null;
 let editingStudentId = null; // Track if we're editing a student
 
+/**
+ * Load max program years from settings and populate year dropdowns
+ */
+function loadMaxProgramYears() {
+    fetch('api/settings.php?action=get&key=max_program_years')
+        .then(response => response.json())
+        .then(data => {
+            const maxYears = data.success && data.value ? parseInt(data.value) : 4;
+            console.log('Max program years:', maxYears);
+            
+            // Populate year level dropdown in student form
+            const yearSelect = document.getElementById('student-year');
+            if (yearSelect) {
+                // Clear existing options except first one
+                while (yearSelect.options.length > 1) {
+                    yearSelect.remove(1);
+                }
+                
+                // Add year options based on max_program_years
+                const yearLabels = ['1st', '2nd', '3rd', '4th'];
+                for (let i = 1; i <= maxYears; i++) {
+                    const option = document.createElement('option');
+                    option.value = yearLabels[i-1];
+                    option.textContent = yearLabels[i-1] + ' Year';
+                    yearSelect.appendChild(option);
+                }
+                
+                // Add Completed option
+                const completedOption = document.createElement('option');
+                completedOption.value = 'Completed';
+                completedOption.textContent = 'Completed';
+                yearSelect.appendChild(completedOption);
+            }
+            
+            // Also update the year filter dropdown
+            const yearFilter = document.getElementById('year-filter');
+            if (yearFilter) {
+                // Keep "All Years" option, update the rest
+                while (yearFilter.options.length > 1) {
+                    yearFilter.remove(1);
+                }
+                
+                const yearLabels = ['1st', '2nd', '3rd', '4th'];
+                for (let i = 1; i <= maxYears; i++) {
+                    const option = document.createElement('option');
+                    option.value = yearLabels[i-1];
+                    option.textContent = yearLabels[i-1] + ' Year';
+                    yearFilter.appendChild(option);
+                }
+                
+                const completedOption = document.createElement('option');
+                completedOption.value = 'Completed';
+                completedOption.textContent = 'Completed';
+                yearFilter.appendChild(completedOption);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading max program years:', error);
+            // Use default 4 years if error
+            populateYearDropdown(4);
+        });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM Content Loaded - Students Page');
     console.log('adminUtils available:', typeof window.adminUtils !== 'undefined');
     
     try {
         loadStudents();
+        loadMaxProgramYears(); // Load and populate year dropdown
         
         // Setup form handlers
         setupFormHandlers();

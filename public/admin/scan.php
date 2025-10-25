@@ -478,18 +478,18 @@ include 'partials/navbar.php';
                                 </div>
                     
                     <!-- Time Validation Errors -->
-                    <div id="time-validation-errors" class="d-none mx-auto">
+                    <div id="time-validation-errors" class="d-none mx-auto text-center">
                         <div class="alert alert-danger border-0 mb-3">
-                            <div class="d-flex align-items-start">
-                                <i class="bx bx-error-circle me-2 mt-1"></i>
-                                <div>
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="bx bx-error-circle me-2"></i>
+                                <div class="text-center">
                                     <h6 class="alert-heading mb-2">Attendance Not Allowed</h6>
                                     <div id="validation-error-message" class="mb-2"></div>
                                     <div id="timing-info" class="small text-muted"></div>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
                     
                     <!-- Auto-confirm Timer (only shown when validation passes) -->
                     <div id="auto-confirm-timer-container" class="alert alert-light border mb-0">
@@ -612,6 +612,7 @@ class QRScanner {
         this.checkTimingSettings();
         this.loadData();
         this.focusInput();
+        this.startAutoFocus();
     }
     
     setupEventListeners() {
@@ -1060,6 +1061,20 @@ class QRScanner {
             confirmBtn.disabled = true;
             confirmBtn.classList.add('disabled');
         }
+        
+        // Auto-close modal after 2 seconds
+        setTimeout(() => {
+            const modalElement = document.getElementById('studentPreviewModal');
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) {
+                modal.hide();
+                
+                // Auto-focus scan input after modal closes
+                modalElement.addEventListener('hidden.bs.modal', () => {
+                    this.focusInput();
+                }, { once: true });
+            }
+        }, 2000);
     }
     
     showAutoConfirmTimer() {
@@ -1378,6 +1393,38 @@ class QRScanner {
     
     focusInput() {
         this.scanInput.focus();
+    }
+    
+    startAutoFocus() {
+        // Auto-focus scan input every 1 second - MUST ALWAYS FOCUS
+        setInterval(() => {
+            // Always focus the scan input field every second, no matter what
+            // This ensures the field is always ready for QR scanning
+            if (!this.modeCheckbox.checked) {
+                this.scanInput.focus();
+                // Also select any text in the field to make it clear it's active
+                this.scanInput.select();
+            }
+        }, 1000);
+        
+        // Also focus on any click anywhere on the page
+        document.addEventListener('click', (event) => {
+            // Don't interfere with modal interactions
+            if (!event.target.closest('.modal') && !this.modeCheckbox.checked) {
+                setTimeout(() => {
+                    this.scanInput.focus();
+                    this.scanInput.select();
+                }, 100);
+            }
+        });
+        
+        // Focus when any key is pressed (except when typing in other inputs)
+        document.addEventListener('keydown', (event) => {
+            if (!event.target.matches('input, textarea, select') && !this.modeCheckbox.checked) {
+                this.scanInput.focus();
+                this.scanInput.select();
+            }
+        });
     }
     
     formatTime12Hour(time24) {

@@ -14,6 +14,7 @@ class AuthMiddleware {
      * Require authentication for the current request
      */
     public static function requireAuth($redirect_url = null) {
+        require_once __DIR__ . '/../public/includes_ext/secure_session.php';
         if (!self::isAuthenticated()) {
             if (self::isAjaxRequest()) {
                 http_response_code(401);
@@ -60,8 +61,8 @@ class AuthMiddleware {
      * Check if user is authenticated
      */
     public static function isAuthenticated() {
-        require_once __DIR__ . '/secure_session.php';
-        
+        require_once __DIR__ . '/../public/includes_ext/secure_session.php';
+        return SecureSession::validate();
         // Check if session is valid
         if (!SecureSession::validate()) {
             return false;
@@ -91,7 +92,7 @@ class AuthMiddleware {
             return false;
         }
         
-        require_once __DIR__ . '/secure_session.php';
+        require_once __DIR__ . '/../public/includes_ext/secure_session.php';
         $user_role = SecureSession::get('user_role', 'student');
         
         return $user_role === $role;
@@ -151,7 +152,7 @@ class AuthMiddleware {
         self::$rate_limit_attempts[$identifier][] = time();
         
         // Also record in secure session
-        require_once __DIR__ . '/secure_session.php';
+        require_once __DIR__ . '/../public/includes_ext/secure_session.php';
         SecureSession::recordLoginAttempt(false);
     }
     
@@ -167,7 +168,7 @@ class AuthMiddleware {
         }
         
         // Record in secure session
-        require_once __DIR__ . '/secure_session.php';
+        require_once __DIR__ . '/../public/includes_ext/secure_session.php';
         SecureSession::recordLoginAttempt(true);
     }
     
@@ -196,7 +197,7 @@ class AuthMiddleware {
      * Validate CSRF token
      */
     public static function validateCSRF($token = null) {
-        require_once __DIR__ . '/csrf_protection.php';
+        require_once __DIR__ . '/../public/includes_ext/csrf_protection.php';
         
         if ($token === null) {
             return CSRFProtection::validateRequest();
@@ -313,7 +314,7 @@ class AuthMiddleware {
             return null;
         }
         
-        require_once __DIR__ . '/secure_session.php';
+        require_once __DIR__ . '/../public/includes_ext/secure_session.php';
         
         return [
             'id' => SecureSession::get('student_id'),
@@ -329,7 +330,7 @@ class AuthMiddleware {
      * Logout user
      */
     public static function logout() {
-        require_once __DIR__ . '/secure_session.php';
+        require_once __DIR__ . '/../public/includes_ext/secure_session.php';
         
         $user = self::getCurrentUser();
         if ($user) {

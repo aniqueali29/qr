@@ -1,0 +1,4 @@
+[25-Oct-2025 00:40:29 Asia/Karachi] PHP Warning:  Cannot modify header information - headers already sent by (output started at C:\xampp\htdocs\qr\public\includes\env.php:91) in C:\xampp\htdocs\qr\public\admin\api\settings.php on line 14
+[25-Oct-2025 00:40:29 Asia/Karachi] PHP Fatal error:  Cannot redeclare getAdminApiUrl() (previously declared in C:\xampp\htdocs\qr\public\includes\config.php:107) in C:\xampp\htdocs\qr\public\admin\includes\config.php on line 105
+[25-Oct-2025 00:40:35 Asia/Karachi] PHP Warning:  Cannot modify header information - headers already sent by (output started at C:\xampp\htdocs\qr\public\includes\env.php:91) in C:\xampp\htdocs\qr\public\admin\api\settings.php on line 14
+[25-Oct-2025 00:40:35 Asia/Karachi] PHP Fatal error:  Cannot redeclare getAdminApiUrl() (previously declared in C:\xampp\htdocs\qr\public\includes\config.php:107) in C:\xampp\htdocs\qr\public\admin\includes\config.php on line 105

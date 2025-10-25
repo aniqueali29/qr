@@ -677,6 +677,11 @@ class AdminSettingsAPI {
                 
                 error_log("Processing setting: {$key} = " . print_r($value, true));
                 
+                // Special handling for AM/PM period settings
+                if (strpos($key, '_period') !== false) {
+                    error_log("Processing AM/PM period setting: {$key} = {$value}");
+                }
+                
                 $result = $this->updateSetting($key, $value, $updated_by);
                 $results[] = $result;
                 

@@ -732,22 +732,41 @@ function loadShiftOptions() {
 }
 
 function loadYearLevelOptions() {
-    fetch('api/reports.php?action=get_year_levels')
+    // Load max_program_years setting and populate year levels dynamically
+    fetch('api/settings.php?action=get&key=max_program_years')
         .then(response => response.json())
         .then(data => {
-            if (data.success && data.data) {
-                const select = document.getElementById('year-level-select');
-                select.innerHTML = '<option value="">All Year Levels</option>';
-                
-                data.data.forEach(yearLevel => {
-                    const option = document.createElement('option');
-                    option.value = yearLevel.year_level;
-                    option.textContent = yearLevel.year_level;
-                    select.appendChild(option);
-                });
+            const maxYears = data.success && data.value ? parseInt(data.value) : 4;
+            const select = document.getElementById('year-level-select');
+            select.innerHTML = '<option value="">All Year Levels</option>';
+            
+            // Add year levels based on max_program_years setting
+            const yearLabels = ['1st', '2nd', '3rd', '4th'];
+            for (let i = 1; i <= maxYears; i++) {
+                const option = document.createElement('option');
+                option.value = yearLabels[i-1];
+                option.textContent = yearLabels[i-1] + ' Year';
+                select.appendChild(option);
             }
+            
+            // Add Completed option
+            const completedOption = document.createElement('option');
+            completedOption.value = 'Completed';
+            completedOption.textContent = 'Completed';
+            select.appendChild(completedOption);
         })
-        .catch(error => console.error('Error loading year levels:', error));
+        .catch(error => {
+            console.error('Error loading year levels:', error);
+            // Default to 4 years if error
+            const select = document.getElementById('year-level-select');
+            select.innerHTML = '<option value="">All Year Levels</option>';
+            ['1st', '2nd', '3rd', '4th'].forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year + ' Year';
+                select.appendChild(option);
+            });
+        });
 }
 
 function loadSectionOptions(program = '', yearLevel = '', shift = '') {

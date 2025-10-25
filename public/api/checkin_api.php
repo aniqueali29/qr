@@ -218,19 +218,21 @@ function handleCheckIn($pdo) {
             return;
         }
         
-        // Additional check: Verify no incomplete check-in record exists today
+        // Additional check: Verify no attendance record exists today (prevent duplicate attendance)
         $stmt = $pdo->prepare("
-            SELECT id FROM attendance 
+            SELECT id, status, check_out_time FROM attendance 
             WHERE student_id = ? 
-            AND DATE(timestamp) = DATE(?) 
-            AND status = 'Check-in'
-            AND check_out_time IS NULL
+            AND DATE(timestamp) = DATE(?)
         ");
         $stmt->execute([$student_id, $current_time_str]);
-        $incomplete_checkin = $stmt->fetch();
+        $existing_attendance = $stmt->fetch();
         
-        if ($incomplete_checkin) {
-            echo json_encode(['success' => false, 'message' => 'You have an incomplete check-in from today. Please check out first.']);
+        if ($existing_attendance) {
+            if ($existing_attendance['status'] === 'Check-in' && $existing_attendance['check_out_time'] === null) {
+                echo json_encode(['success' => false, 'message' => 'You have an incomplete check-in from today. Please check out first.']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Attendance already recorded for today. Multiple check-ins per day are not allowed.']);
+            }
             return;
         }
         
@@ -393,10 +395,28 @@ function handleCheckOut($pdo) {
             ");
             $stmt->execute([$current_time, $total_minutes, $student_id, $current_time]);
             
-            // Deactivate the check-in session
+            // Check if any row was updated
+            if ($stmt->rowCount() === 0) {
+                // Log for debugging
+                error_log("No attendance record found for checkout - Student: $student_id, Date: $current_time");
+                
+                // Try to find what records exist for debugging
+                $debug_stmt = $pdo->prepare("
+                    SELECT id, status, check_out_time, timestamp 
+                    FROM attendance 
+                    WHERE student_id = ? AND DATE(timestamp) = DATE(?)
+                    ORDER BY timestamp DESC
+                ");
+                $debug_stmt->execute([$student_id, $current_time]);
+                $debug_records = $debug_stmt->fetchAll(PDO::FETCH_ASSOC);
+                error_log("Debug - Existing attendance records: " . json_encode($debug_records));
+                
+                throw new Exception('No check-in record found to update. Student may have already checked out or no attendance record exists.');
+            }
+            
+            // Delete the check-in session to avoid unique constraint conflicts
             $stmt = $pdo->prepare("
-                UPDATE check_in_sessions 
-                SET is_active = 0 
+                DELETE FROM check_in_sessions 
                 WHERE id = ?
             ");
             $stmt->execute([$session['id']]);

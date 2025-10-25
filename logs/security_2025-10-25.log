@@ -1,0 +1,3 @@
+[2025-10-25 00:33:35] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_SUCCESS: User: 25-SWT-331, IP: ::1
+[2025-10-25 00:37:47] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_FAILED: User: 25-SWT-332, IP: ::1, Reason: Student not found or inactive
+[2025-10-25 00:38:03] [::1] [Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36] LOGIN_SUCCESS: User: 25-SWT-331, IP: ::1

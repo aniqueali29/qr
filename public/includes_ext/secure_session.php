@@ -182,8 +182,12 @@ class SecureSession {
      * Set session data securely
      */
     public static function set($key, $value) {
-        if (!self::validate()) {
-            return false;
+        // Ensure session is started
+        self::start();
+        
+        // Initialize security if not already done
+        if (!isset($_SESSION['_security'])) {
+            self::initializeSecurity();
         }
         
         $_SESSION[$key] = $value;
@@ -194,6 +198,15 @@ class SecureSession {
      * Get session data securely
      */
     public static function get($key, $default = null) {
+        // Ensure session is started
+        self::start();
+        
+        // If session not initialized yet, return default
+        if (!isset($_SESSION['_security'])) {
+            return $default;
+        }
+        
+        // Validate only if security is initialized
         if (!self::validate()) {
             return $default;
         }
@@ -205,6 +218,15 @@ class SecureSession {
      * Check if session key exists
      */
     public static function has($key) {
+        // Ensure session is started
+        self::start();
+        
+        // If session not initialized yet, return false
+        if (!isset($_SESSION['_security'])) {
+            return false;
+        }
+        
+        // Validate only if security is initialized
         if (!self::validate()) {
             return false;
         }

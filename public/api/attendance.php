@@ -131,19 +131,21 @@ function saveAttendance($pdo) {
                 return;
             }
             
-            // Additional check: Verify no incomplete check-in record exists today
+            // Additional check: Verify no attendance record exists today (prevent duplicate attendance)
             $stmt = $pdo->prepare("
-                SELECT id FROM attendance 
+                SELECT id, status, check_out_time FROM attendance 
                 WHERE student_id = ? 
-                AND DATE(timestamp) = DATE(?) 
-                AND status = 'Check-in'
-                AND check_out_time IS NULL
+                AND DATE(timestamp) = DATE(?)
             ");
             $stmt->execute([$student_id, $current_time_str]);
-            $incomplete_checkin = $stmt->fetch();
+            $existing_attendance = $stmt->fetch();
             
-            if ($incomplete_checkin) {
-                echo json_encode(['success' => false, 'message' => 'You have an incomplete check-in from today. Please check out first.']);
+            if ($existing_attendance) {
+                if ($existing_attendance['status'] === 'Check-in' && $existing_attendance['check_out_time'] === null) {
+                    echo json_encode(['success' => false, 'message' => 'You have an incomplete check-in from today. Please check out first.']);
+                } else {
+                    echo json_encode(['success' => false, 'message' => 'Attendance already recorded for today. Multiple check-ins per day are not allowed.']);
+                }
                 return;
             }
             
@@ -228,9 +230,9 @@ function saveAttendance($pdo) {
                 return;
             }
             
-            // Get check-in time from session
+            // Get check-in session details including ID
             $stmt = $pdo->prepare("
-                SELECT check_in_time 
+                SELECT id, check_in_time, student_name
                 FROM check_in_sessions 
                 WHERE student_id = ? AND is_active = 1
             ");
@@ -251,41 +253,59 @@ function saveAttendance($pdo) {
             $pdo->beginTransaction();
             
             try {
-                // Update check-in session to inactive
+                // Delete the check-in session to avoid unique constraint conflicts
                 $stmt = $pdo->prepare("
-                    UPDATE check_in_sessions 
-                    SET is_active = 0 
-                    WHERE student_id = ? AND is_active = 1
+                    DELETE FROM check_in_sessions 
+                    WHERE id = ?
                 ");
-                $stmt->execute([$student_id]);
+                $stmt->execute([$active_session['id']]);
                 
-                // Update the existing attendance record to mark as Present with checkout time
+                // Try to update existing check-in record first
                 $stmt = $pdo->prepare("
                     UPDATE attendance 
                     SET status = 'Present', 
                         check_out_time = ?, 
-                        session_duration = ?,
-                        notes = CASE WHEN notes IS NULL OR notes = '' THEN ? ELSE CONCAT(notes, ' | ', ?) END,
-                        updated_at = NOW()
+                        session_duration = ?
                     WHERE student_id = ? 
                     AND DATE(timestamp) = DATE(?) 
                     AND status = 'Check-in'
                     AND check_out_time IS NULL
-                    ORDER BY timestamp DESC
-                    LIMIT 1
                 ");
                 $stmt->execute([
                     $current_time_str,
                     $duration_minutes,
-                    $notes,
-                    $notes,
                     $student_id,
                     $current_time_str
                 ]);
                 
-                // Check if any row was updated
+                // If no record was updated, create a new attendance record for this session
                 if ($stmt->rowCount() === 0) {
-                    throw new Exception('No check-in record found to update');
+                    // Get student info for new record
+                    $student_stmt = $pdo->prepare("
+                        SELECT name, shift, program, current_year, admission_year
+                        FROM students 
+                        WHERE student_id = ?
+                    ");
+                    $student_stmt->execute([$student_id]);
+                    $student_info = $student_stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Create new attendance record for this checkout
+                    $stmt = $pdo->prepare("
+                        INSERT INTO attendance (student_id, student_name, timestamp, status, check_in_time, check_out_time, session_duration, shift, program, current_year, admission_year) 
+                        VALUES (?, ?, ?, 'Present', ?, ?, ?, ?, ?, ?, ?)
+                    ");
+                    $stmt->execute([
+                        $student_id,
+                        $student_info['name'],
+                        $session['check_in_time'], // Use session check-in time as timestamp
+                        $session['check_in_time'],
+                        $current_time_str,
+                        $duration_minutes,
+                        $student_info['shift'],
+                        $student_info['program'],
+                        $student_info['current_year'],
+                        $student_info['admission_year']
+                    ]);
                 }
                 
                 $pdo->commit();
@@ -295,7 +315,7 @@ function saveAttendance($pdo) {
                     'message' => 'Check-out successful',
                     'data' => [
                         'student_id' => $student_id,
-                        'student_name' => $student['name'],
+                        'student_name' => $session['student_name'],
                         'check_in_time' => $session['check_in_time'],
                         'check_out_time' => $current_time_str,
                         'session_duration' => $duration_minutes,
@@ -309,15 +329,21 @@ function saveAttendance($pdo) {
                 $pdo->rollback();
                 
                 // Log the error for debugging
-                error_log('Check-out error: ' . $e->getMessage());
+                error_log('Check-out database error: ' . $e->getMessage());
                 
+                // Show more descriptive error for debugging
                 echo json_encode([
                     'success' => false, 
-                    'message' => 'Check-out failed due to a database error. Please try again.'
+                    'message' => 'Database error during checkout: ' . $e->getMessage(),
+                    'debug' => [
+                        'error_code' => $e->getCode(),
+                        'sql_state' => $e->errorInfo[0] ?? null
+                    ]
                 ]);
                 return;
             } catch (Exception $e) {
                 $pdo->rollback();
+                error_log('Check-out error: ' . $e->getMessage());
                 echo json_encode([
                     'success' => false, 
                     'message' => 'Check-out failed: ' . $e->getMessage()

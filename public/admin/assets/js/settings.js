@@ -118,6 +118,9 @@ function populateSettingsForm(settings) {
                     } else if (isTimeField(setting.key)) {
                         // Convert 24-hour to 12-hour format for time fields
                         convertAndSetTime(setting.key, setting.value);
+                    } else if (setting.key.includes('_period')) {
+                        // Handle AM/PM period settings
+                        element.value = setting.value;
                     } else {
                         element.value = setting.value;
                     }
@@ -134,6 +137,9 @@ function populateSettingsForm(settings) {
                     } else if (isTimeField(key)) {
                         // Convert 24-hour to 12-hour format for time fields
                         convertAndSetTime(key, value);
+                    } else if (key.includes('_period')) {
+                        // Handle AM/PM period settings
+                        element.value = value;
                     } else {
                         element.value = value;
                     }
@@ -195,6 +201,8 @@ function convertAndSetTime(fieldId, time24) {
     if (periodSelect) {
         periodSelect.value = period;
     }
+    
+    console.log(`Set time field ${fieldId}: ${hours}:${minutes} ${period}`);
 }
 
 function setupFormChangeDetection() {
@@ -290,6 +298,24 @@ function collectFormData() {
             settings.push({
                 key: input.id,
                 value: value
+            });
+        }
+    });
+    
+    // Also save AM/PM period settings separately for each time field
+    const timeFields = [
+        'morning_checkin_start', 'morning_checkin_end', 'morning_checkout_start', 
+        'morning_checkout_end', 'morning_class_end',
+        'evening_checkin_start', 'evening_checkin_end', 'evening_checkout_start', 
+        'evening_checkout_end', 'evening_class_end'
+    ];
+    
+    timeFields.forEach(fieldId => {
+        const periodSelect = document.getElementById(fieldId + '_period');
+        if (periodSelect) {
+            settings.push({
+                key: fieldId + '_period',
+                value: periodSelect.value
             });
         }
     });

@@ -4,6 +4,10 @@
  * Secure login page with validation and session handling
  */
 
+// Temporarily enable error display for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
 
@@ -18,6 +22,7 @@ $success_message = '';
 
 // Handle login form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
     $username = sanitizeInput($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
     $csrf_token = $_POST['csrf_token'] ?? '';
@@ -60,6 +65,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error_message = $result['message'];
             }
         }
+    }
+    } catch (Exception $e) {
+        die("<h1>Login Error</h1><pre>" . $e->getMessage() . "\n\nStack trace:\n" . $e->getTraceAsString() . "</pre>");
+    } catch (Error $e) {
+        die("<h1>PHP Error</h1><pre>" . $e->getMessage() . "\n\nStack trace:\n" . $e->getTraceAsString() . "</pre>");
     }
 }
 ?>
@@ -223,6 +233,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="<?php echo getStudentAssetUrl('js/main.js'); ?>"></script>
 
     <!-- Page JS -->
-    <script src="<?php echo getStudentAssetUrl('js/pages-auth.js'); ?>"></script>
+    <script>
+    // Password visibility toggle functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const passwordToggle = document.querySelector('.form-password-toggle .input-group-text');
+        const passwordInput = document.querySelector('#password');
+        const eyeIcon = passwordToggle.querySelector('i');
+        
+        if (passwordToggle && passwordInput && eyeIcon) {
+            passwordToggle.addEventListener('click', function() {
+                // Toggle password visibility
+                if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    eyeIcon.className = 'icon-base bx bx-show';
+                } else {
+                    passwordInput.type = 'password';
+                    eyeIcon.className = 'icon-base bx bx-hide';
+                }
+            });
+        }
+    });
+    </script>
 </body>
 </html>

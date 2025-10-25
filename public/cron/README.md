@@ -1,105 +1,217 @@
-# Automatic Absent Marking System
+# Automatic Absent Marking - Cron Job
 
-This directory contains scripts for automatically marking students as absent after check-in windows close.
+This directory contains scripts for automatically marking students as absent if they don't check in by the deadline.
 
 ## Files
 
-- `mark_absent.php` - Simple cron script for basic absent marking
-- `auto_absent.php` - Advanced script that handles both shifts intelligently
-
-## Setup Instructions
-
-### Option 1: Windows Task Scheduler (Recommended for XAMPP)
-
-1. Open **Task Scheduler** (search for it in Start menu)
-2. Click **"Create Basic Task"**
-3. Name: "QR Attendance - Auto Mark Absent"
-4. Trigger: **Daily**
-5. Start time: **11:30 AM** (after morning check-in window)
-6. Action: **Start a program**
-7. Program: `C:\xampp\php\php.exe`
-8. Arguments: `C:\xampp\htdocs\qr_attendance\public\cron\auto_absent.php`
-9. Click **Finish**
-
-### Option 2: Linux/Mac Cron
-
-Add this line to your crontab (`crontab -e`):
-
-```bash
-# Run at 11:30 AM daily (after morning check-in window)
-30 11 * * * /usr/bin/php /path/to/qr_attendance/public/cron/auto_absent.php
-
-# Run at 5:30 PM daily (after evening check-in window)
-30 17 * * * /usr/bin/php /path/to/qr_attendance/public/cron/auto_absent.php
-```
-
-### Option 3: Web-based Trigger
-
-You can also trigger the auto absent marking manually from the admin panel:
-
-1. Go to **Scan Attendance** page
-2. Click the **"Auto Check"** button
-3. The system will check if any students should be marked absent
+- **cron.php** - Unified cron entrypoint (absent, cleanup, backup)
+- **setup_cron.bat** - Batch file to configure Windows Task Scheduler
+- **README.md** - This file
 
 ## How It Works
 
-### Auto Absent Logic
+The system automatically marks students as **Absent** in two scenarios:
 
-1. **Checks Current Time**: Compares against configured check-in end times
-2. **Identifies Missing Students**: Finds students with no attendance record for today
-3. **Marks by Shift**: Only marks students absent if their shift's check-in window has closed
-4. **Logs Everything**: All actions are logged to `logs/auto_absent.log`
+1. **Missing Check-In**: Students who haven't checked in by the check-in deadline
+2. **Missing Check-Out**: Students who checked in but didn't check out by the check-out deadline
 
-### Timing Configuration
+### Features
+- ✅ **Dual-phase absent marking** (check-in + check-out)
+- ✅ Respects shift timings (morning/evening) from admin settings
+- ✅ Phase 1: Marks students with NO attendance record as absent
+- ✅ Phase 2: Marks students who checked in but didn't check out as absent
+- ✅ Can be enabled/disabled from admin settings
+- ✅ Logs all operations for debugging
+- ✅ Can be run manually or scheduled automatically
+- ✅ Adds detailed notes to explain why student was marked absent
 
-The system uses your settings from the admin panel:
-- **Morning Check-in End**: Default 11:00 AM
-- **Evening Check-in End**: Default 5:00 PM
-- **Timezone**: Configurable in settings
+## Setup Instructions
 
-### Safety Features
+### Step 1: Enable Auto-Absent in Settings
 
-- **No Duplicate Marking**: Won't mark students who already have attendance records
-- **Shift-Specific**: Only marks absent students whose check-in window has closed
-- **Comprehensive Logging**: All actions and errors are logged
-- **Error Handling**: Continues processing even if individual students fail
+1. Login to Admin Panel
+2. Go to **Settings** page
+3. Under **General Settings**, enable **"Enable Auto Absent"**
+4. Configure your check-in deadlines for morning and evening shifts
+5. Save settings
 
-## Testing
+### Step 2: Schedule the Cron Job (Automatic)
 
-To test the system:
+#### Option A: Using the Setup Script (Recommended)
 
-1. **Manual Test**: Click "Auto Check" button in admin panel
-2. **Cron Test**: Run the script manually:
-   ```bash
-   php C:\xampp\htdocs\qr_attendance\public\cron\auto_absent.php
-   ```
+1. Right-click `setup_cron.bat` and select **"Run as administrator"**
+2. The script will create two scheduled tasks:
+   - Morning shift task (runs at 10:00 AM)
+   - Evening shift task (runs at 3:00 PM)
 
-## Logs
+#### Option B: Manual Task Scheduler Setup
 
-Check these files for system activity:
-- `logs/auto_absent.log` - Main auto absent logging
-- `logs/cron_errors.log` - Cron-specific errors
-- `logs/error.log` - General system errors
+1. Open **Task Scheduler** (search in Windows)
+2. Click **"Create Basic Task"**
+3. Name: `QR_Attendance_Auto_Absent`
+4. Trigger: Daily at 9:00 PM (after all shifts end)
+5. Action: Start a program
+   - Program: `C:\xampp\php\php.exe`
+   - Arguments: `C:\xampp\htdocs\qr\public\cron\cron.php absent`
+6. Finish
+
+### Step 3: Test the Cron Job (Manual Run)
+
+Test the script manually before scheduling:
+
+```bash
+# Auto-absent (both shifts when due)
+php C:\xampp\htdocs\qr\public\cron\cron.php absent
+
+# Auto-absent for a specific shift
+php C:\xampp\htdocs\qr\public\cron\cron.php absent morning
+php C:\xampp\htdocs\qr\public\cron\cron.php absent evening
+
+# Cleanup logs
+php C:\xampp\htdocs\qr\public\cron\cron.php cleanup
+
+# Database backup
+php C:\xampp\htdocs\qr\public\cron\cron.php backup
+
+# Run all
+php C:\xampp\htdocs\qr\public\cron\cron.php all
+```
+
+## Configuration
+
+### Adjusting Run Times
+
+Edit `setup_cron.bat` and change these lines:
+
+```batch
+REM Morning task - change 10:00 to your desired time
+schtasks /create ... /st 10:00 ...
+
+REM Evening task - change 15:00 to your desired time
+schtasks /create ... /st 15:00 ...
+```
+
+**Important:** The cron job performs TWO checks:
+1. **Check-In Deadline**: Marks students who never checked in
+2. **Check-Out Deadline**: Marks students who checked in but didn't check out
+
+**Recommended Scheduling:**
+
+Run the cron AFTER the check-out deadline (which is typically after class ends):
+
+**Morning Shift Example:**
+- Check-in: 8:00 AM - 9:30 AM
+- Class: 9:30 AM - 1:40 PM
+- Check-out: 9:30 AM - 1:40 PM
+- **Schedule cron at: 2:00 PM** (after check-out deadline)
+
+**Evening Shift Example:**
+- Check-in: 3:00 PM - 5:00 PM
+- Class: 5:00 PM - 8:00 PM
+- Check-out: 5:00 PM - 8:00 PM
+- **Schedule cron at: 8:30 PM** (after check-out deadline)
+
+This ensures both phases complete:
+- Students who didn't check in are marked absent
+- Students who checked in but didn't check out are also marked absent
+
+### Checking Shift Timings
+
+Check your current shift timing settings:
+
+```sql
+SELECT setting_key, setting_value 
+FROM system_settings 
+WHERE setting_key LIKE '%checkin%';
+```
 
 ## Troubleshooting
 
+### Check if tasks are scheduled
+
+```cmd
+schtasks /query /tn QR_Attendance_Auto_Absent
+schtasks /query /tn QR_Attendance_Log_Cleanup
+schtasks /query /tn QR_Attendance_Database_Backup
+```
+
+### View task execution history
+
+1. Open Task Scheduler
+2. Find the task under "Task Scheduler Library"
+3. Click on "History" tab at the bottom
+
+### Check logs
+
+The script logs to Apache error log:
+```
+C:\xampp\apache\logs\error.log
+```
+
+Look for lines starting with `[CRON_ABSENT]`
+
 ### Common Issues
 
-1. **"Database connection not available"**
-   - Check your `config.env` file
-   - Ensure database is running
+**Problem:** Task doesn't run
+- **Solution:** Ensure task is set to run with SYSTEM account
+- Check that PHP path is correct: `C:\xampp\php\php.exe`
 
-2. **"Settings not found"**
-   - Run the system settings setup in admin panel
-   - Check `system_settings` table exists
+**Problem:** Students not being marked
+- **Solution:** Check if "Enable Auto Absent" is enabled in settings
+- Verify the cron is running AFTER the check-in deadline
 
-3. **"No students found"**
-   - Check if students exist in the `students` table
-   - Verify student records have correct `shift` values
+**Problem:** "Auto-absent marking is DISABLED"
+- **Solution:** Enable it in Admin Settings → General Settings
 
-### Manual Override
+## Manual Execution
 
-If you need to mark students absent manually:
-1. Go to **Attendance** page
-2. Use the **"Mark Absent"** button
-3. Or use the **"Auto Check"** button for intelligent marking
+You can also run the script manually anytime:
+
+```bash
+# Auto-absent
+php C:\xampp\htdocs\qr\public\cron\cron.php absent
+
+# Cleanup
+php C:\xampp\htdocs\qr\public\cron\cron.php cleanup
+
+# Backup
+php C:\xampp\htdocs\qr\public\cron\cron.php backup
+
+# All
+php C:\xampp\htdocs\qr\public\cron\cron.php all
+```
+
+## Database Impact
+
+The script:
+- Reads from: `system_settings`, `students` tables
+- Writes to: `attendance` table
+- Adds records with `marked_by_system = 1` flag
+
+## Security
+
+- Script can only be run from command line (CLI), not via web browser
+- No web-accessible endpoint
+- Uses existing database credentials from config
+
+## Uninstalling
+
+To remove scheduled tasks:
+
+```cmd
+schtasks /delete /tn QR_Attendance_Auto_Absent /f
+schtasks /delete /tn QR_Attendance_Log_Cleanup /f
+schtasks /delete /tn QR_Attendance_Database_Backup /f
+```
+
+Or run `setup_cron.bat` which removes old tasks before creating new ones.
+
+## Support
+
+For issues or questions, check the logs at:
+- Apache Error Log: `C:\xampp\apache\logs\error.log`
+- Script output when running manually
+
+---
+
+**Last Updated:** 2025-10-24
