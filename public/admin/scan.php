@@ -10,6 +10,9 @@ if (!isset($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_
 
 requireAdminAuth();
 
+// Check if module is enabled
+requireModuleEnabled('module_scan');
+
 $pageTitle = 'QR Scanner';
 $pageCSS = ['css/scanner.css'];
 $pageJS = ['js/scanner.js'];
@@ -603,6 +606,10 @@ class QRScanner {
         this.flashEnabled = true;
         this.vibrationEnabled = false;
         
+        // QR scanner buffer to handle character-by-character input
+        this.scanBuffer = '';
+        this.scanTimeout = null;
+        
         this.init();
     }
     
@@ -619,12 +626,21 @@ class QRScanner {
         // Mode toggle
         this.modeToggle.addEventListener('click', () => this.toggleMode());
         
-        // Scanner input
+        // Scanner input - use multiple event types for better QR scanner compatibility
         this.scanInput.addEventListener('input', (e) => this.handleScan(e));
-        this.scanInput.addEventListener('keypress', (e) => {
+        this.scanInput.addEventListener('keydown', (e) => {
+            // Handle Enter key immediately
             if (e.key === 'Enter') {
+                e.preventDefault();
                 this.processScan(e.target.value);
             }
+        });
+        
+        // Add paste event for QR scanners that paste data
+        this.scanInput.addEventListener('paste', (e) => {
+            setTimeout(() => {
+                this.processScan(e.target.value);
+            }, 50);
         });
         
         // Manual submit
@@ -662,8 +678,24 @@ class QRScanner {
     
     handleScan(event) {
         const value = event.target.value.trim();
+        
+        // Clear any existing timeout
+        if (this.scanTimeout) {
+            clearTimeout(this.scanTimeout);
+        }
+        
+        // Update the scan buffer
+        this.scanBuffer = value;
+        
+        // Only process if we have a complete student ID pattern
         if (value.length > 0) {
-            this.processScan(value);
+            // Check if it looks like a complete student ID (has dashes and proper format)
+            if (this.isValidStudentId(value) || (value.includes('-') && value.length >= 8)) {
+                // Wait a bit more to ensure we have the complete data
+                this.scanTimeout = setTimeout(() => {
+                    this.processScan(value);
+                }, 150); // Slightly longer delay for QR scanners
+            }
         }
     }
     
@@ -675,15 +707,24 @@ class QRScanner {
             return;
         }
         
+        // Additional validation: Don't process single characters or very short strings
+        if (!qrData || qrData.length < 3) {
+            console.log('Skipping scan - data too short:', qrData);
+            return;
+        }
+        
         // Try to extract a valid student ID from the QR data
         const studentId = this.extractStudentIdFromQR(qrData);
 
-            if (!studentId) {
-            this.showMessage('Invalid QR code format. Expected student ID format: YY-PROGRAM-NNN (e.g., 25-SWT-595)', 'error');
-            console.error('Invalid QR data:', qrData);
-            this.scanInput.value = '';
-                return;
+        if (!studentId) {
+            // Only show error for data that looks like it could be a student ID
+            if (qrData.length >= 5 && (qrData.includes('-') || qrData.match(/[0-9]/))) {
+                this.showMessage('Invalid QR code format. Expected student ID format: YY-PROGRAM-NNN (e.g., 25-SWT-595)', 'error');
+                console.error('Invalid QR data:', qrData);
             }
+            this.scanInput.value = '';
+            return;
+        }
 
         // Check duplicate suppression
         if (this.isDuplicateScan(studentId, now)) {
@@ -694,6 +735,7 @@ class QRScanner {
         this.lastScanTime = now;
         this.showStudentPreview(studentId);
         this.scanInput.value = '';
+        this.scanBuffer = ''; // Clear the buffer
     }
     
     isDuplicateScan(studentId, timestamp) {
@@ -753,10 +795,10 @@ class QRScanner {
             console.log('Student ID length:', studentId ? studentId.length : 'null');
             console.log('Student ID raw value:', JSON.stringify(studentId));
             
-            // Validate student ID format (should be like 25-SWT-01)
+            // Validate student ID format (2–6 digit serial supported)
             if (!this.isValidStudentId(studentId)) {
                 console.error('Invalid student ID format:', studentId);
-                this.showMessage('Invalid student ID format. Expected format: YY-PROGRAM-NNN (e.g., 25-SWT-595)', 'error');
+                this.showMessage('Invalid student ID. Expected: YY-PROGRAM-XX..XXXXXX (2–6 digits, e.g., 25-SWT-02 or 24-CIVL-000001)', 'error');
                 return {
                     name: 'Invalid ID Format',
                     program: 'N/A',
@@ -831,8 +873,8 @@ class QRScanner {
             return false;
         }
         
-        // Updated pattern to allow 2-3 digit sequence numbers
-        const pattern = /^\d{2}-[E]?[A-Z]{2,4}-\d{2,3}$/i;
+        // Updated pattern to allow 2–6 digit sequence numbers
+        const pattern = /^\d{2}-[E]?[A-Z]{2,4}-\d{2,6}$/i;
         return pattern.test(studentId);
     }
     
@@ -840,25 +882,34 @@ class QRScanner {
         // Try to extract a valid student ID from QR data
         // Sometimes QR codes contain extra data or are malformed
         
+        // Clean the input data
+        const cleanData = qrData.trim();
+        
         // If it's already a valid ID, return it
-        if (this.isValidStudentId(qrData)) {
-            return qrData;
+        if (this.isValidStudentId(cleanData)) {
+            return cleanData;
+        }
+        
+        // If the data is too short or doesn't contain expected patterns, return null
+        if (cleanData.length < 5 || !cleanData.match(/[0-9]/) || !cleanData.match(/[A-Za-z]/)) {
+            console.error('QR data too short or missing required characters:', cleanData);
+            return null;
         }
         
         // Try to find a pattern that looks like a student ID
         const patterns = [
-            /(\d{2}-[E]?[A-Z]{2,4}-\d{2,3})/i,  // Standard format (2-3 digits)
-            /(\d{2}[E]?[A-Z]{2,4}\d{2,3})/i,    // Without dashes (2-3 digits)
-            /(\d{2}\s+[E]?[A-Z]{2,4}\s+\d{2,3})/i  // With spaces (2-3 digits)
+            /(\d{2}-[E]?[A-Z]{2,4}-\d{2,6})/i,  // Standard format (2–6 digits)
+            /(\d{2}[E]?[A-Z]{2,4}\d{2,6})/i,    // Without dashes (2–6 digits)
+            /(\d{2}\s+[E]?[A-Z]{2,4}\s+\d{2,6})/i  // With spaces (2–6 digits)
         ];
         
         for (const pattern of patterns) {
-            const match = qrData.match(pattern);
+            const match = cleanData.match(pattern);
             if (match) {
                 let extracted = match[1];
                 // Normalize format (add dashes if missing)
                 if (!extracted.includes('-')) {
-                    extracted = extracted.replace(/(\d{2})([E]?)([A-Z]{2,4})(\d{2,3})/i, '$1-$2$3-$4');
+                    extracted = extracted.replace(/(\d{2})([E]?)([A-Z]{2,4})(\d{2,6})/i, '$1-$2$3-$4');
                 }
                 if (this.isValidStudentId(extracted)) {
                     console.log('Extracted student ID from QR:', extracted);
@@ -867,7 +918,7 @@ class QRScanner {
             }
         }
         
-        console.error('Could not extract valid student ID from QR data:', qrData);
+        console.error('Could not extract valid student ID from QR data:', cleanData);
         return null;
     }
     

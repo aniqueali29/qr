@@ -11,6 +11,9 @@ require_once 'includes/helpers.php';
 // Require admin authentication
 requireAdminAuth();
 
+// Check if module is enabled
+requireModuleEnabled('module_attendance');
+
 $pageTitle = "Today's Active Students";
 $currentPage = "attendances";
 $pageCSS = ['css/responsive-buttons.css'];
@@ -214,10 +217,6 @@ include 'partials/navbar.php';
                         <label for="program-filter" class="form-label">Program</label>
                         <select id="program-filter" class="form-select">
                             <option value="">All Programs</option>
-                            <option value="SWT">SWT - Software Technology (Morning)</option>
-                            <option value="ESWT">ESWT - Software Technology (Evening)</option>
-                            <option value="CIT">CIT - Computer Information Technology (Morning)</option>
-                            <option value="ECIT">ECIT - Computer Information Technology (Evening)</option>
                         </select>
                     </div>
                     <div class="col-md-4">
@@ -428,6 +427,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup filter handlers
     setupFilterHandlers();
     
+    // Load program options dynamically
+    loadProgramOptions();
+    
     // Load student options first, then apply student filter if needed
     loadStudentOptions().then(() => {
         // If student_id parameter exists, set it in the filter after options are loaded
@@ -621,7 +623,9 @@ function loadStudentOptions() {
                 const select = document.getElementById('student-filter');
                 select.innerHTML = '<option value="">All Students</option>';
                 
-                data.data.students.forEach(student => {
+                // Handle both data.data (new API) and data.data.students (old API)
+                const students = Array.isArray(data.data) ? data.data : (data.data.students || []);
+                students.forEach(student => {
                     const option = document.createElement('option');
                     option.value = student.student_id || student.roll_number; // Use actual student ID string
                     option.textContent = `${student.roll_number} - ${student.name}`;
@@ -638,6 +642,29 @@ function loadStudentOptions() {
             // Show a user-friendly error message
             showAlert('Could not load student list. Please refresh the page.', 'danger');
             throw error;
+        });
+}
+
+function loadProgramOptions() {
+    fetch('api/programs.php?action=programs')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const select = document.getElementById('program-filter');
+                select.innerHTML = '<option value="">All Programs</option>';
+                
+                data.data.forEach(program => {
+                    const option = document.createElement('option');
+                    option.value = program.code;
+                    option.textContent = `${program.code} - ${program.name}`;
+                    select.appendChild(option);
+                });
+            } else {
+                console.error('Error loading programs:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading program options:', error);
         });
 }
 

@@ -11,6 +11,9 @@ require_once 'includes/helpers.php';
 // Require admin authentication
 requireAdminAuth();
 
+// Check if module is enabled
+requireModuleEnabled('module_program_sections');
+
 $pageTitle = "Programs & Sections";
 $currentPage = "program_sections";
 $pageCSS = ['css/responsive-buttons.css'];
@@ -97,7 +100,7 @@ include 'partials/navbar.php';
                 <div class="row align-items-center">
                     <div class="col-12 col-md-6">
                         <h5 class="card-title mb-0">
-                            <i class="bx bx-graduation-cap me-2"></i>Programs Management
+                            <i class="menu-icon tf-icons bx bx-laptop me-2"></i>Programs Management
                         </h5>
                     </div>
                     <div class="col-12 col-md-6 mt-2 mt-md-0">
@@ -244,9 +247,6 @@ include 'partials/navbar.php';
                             <label for="section-year-filter" class="form-label">Year Level</label>
                             <select id="section-year-filter" class="form-select">
                                 <option value="">All Years</option>
-                                <option value="1st">1st Year</option>
-                                <option value="2nd">2nd Year</option>
-                                <option value="3rd">3rd Year</option>
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -365,6 +365,23 @@ include 'partials/navbar.php';
                     </div>
                     
                     <div class="mb-3">
+                        <label class="form-label">Enabled Shifts *</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="shift-morning" name="enabled_shifts[]" value="Morning" checked>
+                            <label class="form-check-label" for="shift-morning">
+                                Morning
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="shift-evening" name="enabled_shifts[]" value="Evening" checked>
+                            <label class="form-check-label" for="shift-evening">
+                                Evening
+                            </label>
+                        </div>
+                        <div class="form-text">Select which shifts to enable for this program. Sections will be auto-created only for enabled shifts.</div>
+                    </div>
+                    
+                    <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="program-active" name="is_active" checked>
                             <label class="form-check-label" for="program-active">
@@ -408,9 +425,6 @@ include 'partials/navbar.php';
                             <label for="section-year" class="form-label">Year Level *</label>
                             <select id="section-year" name="year_level" class="form-select" required>
                                 <option value="">Select Year</option>
-                                <option value="1st">1st Year</option>
-                                <option value="2nd">2nd Year</option>
-                                <option value="3rd">3rd Year</option>
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -505,6 +519,42 @@ include 'partials/navbar.php';
 
 <script>
 // Programs & Sections page specific JavaScript
+function loadAcademicOptionsForSections() {
+    Promise.all([
+        fetch('api/settings.php?action=get&key=academic_structure_mode').then(r=>r.json()).catch(()=>({success:false})),
+        fetch('api/settings.php?action=get&key=semesters_per_year').then(r=>r.json()).catch(()=>({success:false})),
+        fetch('api/settings.php?action=get&key=semester_names').then(r=>r.json()).catch(()=>({success:false})),
+        fetch('api/settings.php?action=get&key=max_program_years').then(r=>r.json()).catch(()=>({success:false,value:4}))
+    ]).then(([modeRes,countRes,namesRes,maxYearsRes])=>{
+        const mode = (modeRes.success?String(modeRes.value):'year').toLowerCase();
+        const semCount = parseInt(countRes && countRes.value ? countRes.value : 2, 10) || 2;
+        let semNames = [];
+        try {
+            if (namesRes && namesRes.success) {
+                if (Array.isArray(namesRes.value)) semNames = namesRes.value; else if (typeof namesRes.value === 'string') { const p = JSON.parse(namesRes.value); if (Array.isArray(p)) semNames = p; }
+            }
+        } catch(e) { semNames = []; }
+        if (semNames.length === 0) semNames = Array.from({length: semCount},(_,i)=>`Semester ${i+1}`);
+        const maxYears = parseInt(maxYearsRes && maxYearsRes.value ? maxYearsRes.value : 4, 10) || 4;
+
+        const yearSel = document.getElementById('section-year');
+        const filterSel = document.getElementById('section-year-filter');
+        const clear = (sel, keepFirst=false)=>{ if(!sel) return; while(sel.options.length>(keepFirst?1:0)) sel.remove(keepFirst?1:0); };
+        if (mode === 'semester') {
+            clear(yearSel,true); clear(filterSel,true);
+            semNames.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; if(yearSel) yearSel.appendChild(o.cloneNode(true)); if(filterSel) filterSel.appendChild(o); });
+        } else {
+            clear(yearSel,true); clear(filterSel,true);
+            const labels=['1st','2nd','3rd','4th','5th','6th'];
+            for(let i=1;i<=maxYears;i++){
+                const val = labels[i-1] || `${i}th`;
+                const text = `${val} Year`;
+                const o1=document.createElement('option'); o1.value=val; o1.textContent=text; if(yearSel) yearSel.appendChild(o1);
+                const o2=document.createElement('option'); o2.value=val; o2.textContent=text; if(filterSel) filterSel.appendChild(o2);
+            }
+        }
+    }).catch(err=>console.error('Academic options load failed:', err));
+}
 let deleteItemId = null;
 let deleteItemType = null;
 
@@ -512,6 +562,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadPrograms();
     loadSections();
     loadProgramOptions();
+    loadAcademicOptionsForSections();
     
     // Setup form handlers
     setupFormHandlers();
@@ -822,6 +873,11 @@ function loadProgramData(programId) {
                 document.getElementById('program-name').value = program.name;
                 document.getElementById('program-description').value = program.description || '';
                 document.getElementById('program-active').checked = program.is_active;
+                
+                // Load enabled shifts
+                const enabledShifts = (program.enabled_shifts || 'Morning,Evening').split(',');
+                document.getElementById('shift-morning').checked = enabledShifts.includes('Morning');
+                document.getElementById('shift-evening').checked = enabledShifts.includes('Evening');
             } else {
                 showAlert('Error loading program data', 'danger');
             }

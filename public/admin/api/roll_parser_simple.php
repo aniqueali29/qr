@@ -4,6 +4,25 @@
  * No authentication required - for auto-fill functionality
  */
 
+// Strict JSON output for admin simple parser
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ob_start();
+set_error_handler(function($errno,$errstr,$errfile,$errline){
+    error_log("roll_parser_simple PHP[$errno] $errstr in $errfile:$errline");
+    return true;
+});
+register_shutdown_function(function(){
+    http_response_code(200);
+    $e = error_get_last();
+    if ($e && in_array($e['type'], [E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR,E_USER_ERROR])) {
+        if (ob_get_length()) { ob_clean(); }
+        header('Content-Type: application/json');
+        echo json_encode(['success'=>false,'error'=>'Parser fatal: '.$e['message']]);
+    }
+});
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -16,12 +35,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 }
 
 require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../../includes/academic.php';
 
 $action = $_GET['action'] ?? '';
+
+if (ob_get_length()) { ob_clean(); }
 
 switch ($action) {
     case 'parse_roll':
         $roll_number = $_GET['roll_number'] ?? '';
+        // Normalize: uppercase and normalize unicode dashes to ASCII '-'
+        $roll_number = strtoupper(preg_replace('/[\x{2012}-\x{2015}]/u', '-', $roll_number));
         echo json_encode(parseRollNumberData($roll_number, $pdo));
         break;
     default:
@@ -32,13 +56,13 @@ switch ($action) {
 
 function parseRollNumberData($roll_number, $pdo) {
     try {
-        // Parse D.A.E roll number format: YY-[E]PROGRAM-NN (allow 2-3 digit serial numbers)
-        // Examples: 24-SWT-01, 24-ESWT-01, 24-CIT-01, 24-ECIT-01, 25-SWT-583
-        $pattern = '/^(\d{2})-E?([A-Z]{2,10})-(\d{2,3})$/';
+        // Parse roll number format: XX-XXX-XXXXX or XX-XXXX-XXXXXX
+        // Examples: 24-SWT-00001, 24-CIVL-000001
+        $pattern = '/^(\d{2})-([A-Za-z]{3,4})-([0-9]{2,6})$/';
         if (!preg_match($pattern, $roll_number, $matches)) {
             return [
                 'success' => false, 
-                'error' => 'Invalid D.A.E roll number format. Expected: YY-PROGRAM-NN or YY-EPROGRAM-NN (e.g., 24-SWT-01, 25-SWT-583, 24-ESWT-01)'
+                'error' => 'Invalid roll number format. Expected: XX-XXX-XX to XX-XXXX-XXXXXX (2–6 digit serial)'
             ];
         }
         
@@ -46,9 +70,8 @@ function parseRollNumberData($roll_number, $pdo) {
         $program_part = $matches[2];
         $serial_part = $matches[3];
         
-        // Determine if it's evening shift (has E prefix)
-        $is_evening = strpos($roll_number, '-E') !== false;
-        $shift = $is_evening ? 'Evening' : 'Morning';
+        // Shift is not encoded in the new format; leave empty and let user select
+        $shift = '';
         
         // For evening programs, the regex already captures the program without E
         // So ESWT becomes SWT, ECIT becomes CIT
@@ -66,64 +89,58 @@ function parseRollNumberData($roll_number, $pdo) {
             ];
         }
         
-        // Get program details from database using base program code
-        $stmt = $pdo->prepare("SELECT id, code, name FROM programs WHERE code = ? AND is_active = TRUE");
-        $stmt->execute([$base_program_code]);
-        $program = $stmt->fetch(PDO::FETCH_ASSOC);
+        // Get program details from database trying multiple code candidates
+        $candidates = [];
+        $candidates[] = $program_part; // as-is (base)
+        if (stripos($program_part, 'E') !== 0) { $candidates[] = 'E' . $program_part; } // E-prefixed variant
+        if (stripos($program_part, 'E') === 0) { $candidates[] = substr($program_part, 1); } // de-prefixed variant
+        $program = null;
+        foreach ($candidates as $pc) {
+            $stmt = $pdo->prepare("SELECT id, code, name FROM programs WHERE code = ? AND is_active = TRUE");
+            $stmt->execute([$pc]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) { $program = $row; break; }
+        }
         
         if (!$program) {
+            // Build dynamic list of available codes for a helpful error
+            try {
+                $listStmt = $pdo->query("SELECT code FROM programs WHERE is_active = TRUE ORDER BY code");
+                $codes = $listStmt ? array_column($listStmt->fetchAll(PDO::FETCH_ASSOC), 'code') : [];
+            } catch (Throwable $e2) { $codes = []; }
             return [
                 'success' => false, 
-                'error' => 'Unknown D.A.E program code: ' . $base_program_code . '. Valid codes: SWT, CIT'
+                'error' => 'Unknown program code: ' . $base_program_code . (empty($codes) ? '' : '. Available: ' . implode(', ', $codes))
             ];
         }
         
-        // Calculate current year level based on admission year and current date
+        // Calculate current academic info using centralized helpers
         $current_date = new DateTime();
         $current_year = (int)$current_date->format('Y');
         $current_month = (int)$current_date->format('n');
-        
-        // Calculate years difference from admission year
-        $years_difference = $current_year - $admission_year;
-        
-        // Academic year progression logic:
-        // - If current month is September or later, students progress to next year
-        // - If current month is before September, they're still in the same academic year
-        
-        if ($current_month >= 9) {
-            // After September: students have progressed to the next academic year
-            $year_level = $years_difference + 1;
-        } else {
-            // Before September: students are still in the same academic year
-            $year_level = $years_difference;
-        }
-        
-        // Ensure year level is within valid range (1-3)
-        $year_level = max(1, min($year_level, 3));
-        
-        // Determine if student has completed the program
-        $is_completed = $years_difference >= 3;
-        
-        // Format the status
+        $year_level_num = compute_year_of_study($admission_year, $current_date);
+        $max_years = (int) academic_get_setting('max_program_years', 4);
+        $is_completed = $year_level_num >= $max_years;
+
+        $mode = academic_get_setting('academic_structure_mode', 'year');
         if ($is_completed) {
             $status = 'Completed';
+        } else if ($mode === 'semester') {
+            $ctx = determine_academic_context($current_date);
+            $status = $ctx['current_semester_name'] ?: 'Semester';
         } else {
-            // Convert numeric year level to ordinal format
-            switch ($year_level) {
-                case 1:
-                    $status = '1st';
-                    break;
-                case 2:
-                    $status = '2nd';
-                    break;
-                case 3:
-                    $status = '3rd';
-                    break;
-                default:
-                    $status = '1st';
+            if ($year_level_num === 1) {
+                $status = '1st';
+            } elseif ($year_level_num === 2) {
+                $status = '2nd';
+            } elseif ($year_level_num === 3) {
+                $status = '3rd';
+            } else {
+                $status = $year_level_num . 'th';
             }
         }
         
+        if (ob_get_length()) { ob_clean(); }
         return [
             'success' => true,
             'data' => [
@@ -132,19 +149,20 @@ function parseRollNumberData($roll_number, $pdo) {
                 'program_id' => $program['id'],
                 'program_code' => $program['code'],
                 'program_name' => $program['name'],
-                'shift' => $shift,
+            'shift' => $shift, // empty string; user must select
                 'serial_number' => $serial_part,
-                'year_level' => $status,
-                'year_level_numeric' => $year_level,
+'year_level' => $status,
+                'academic_structure' => get_academic_config(),
+                'academic_context' => determine_academic_context($current_date),
+'year_level_numeric' => $year_level_num,
                 'is_completed' => $is_completed,
-                'years_difference' => $years_difference,
                 'current_year' => $current_year,
                 'current_month' => $current_month,
                 'program_type' => 'D.A.E'
             ]
         ];
         
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         return [
             'success' => false,
             'error' => 'Error parsing roll number: ' . $e->getMessage()

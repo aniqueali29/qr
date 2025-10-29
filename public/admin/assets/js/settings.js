@@ -107,6 +107,8 @@ function loadSettings() {
 }
 
 function populateSettingsForm(settings) {
+    const isJsonField = (key) => key === 'semester_names' || key === 'semester_start_months';
+    const isModuleSetting = (key) => key.startsWith('module_');
     // Populate form fields with settings data
     Object.keys(settings).forEach(category => {
         if (Array.isArray(settings[category])) {
@@ -114,13 +116,25 @@ function populateSettingsForm(settings) {
                 const element = document.getElementById(setting.key);
                 if (element) {
                     if (element.type === 'checkbox') {
-                        element.checked = setting.value;
+                        // For module settings, check if value is 'enabled'
+                        if (isModuleSetting(setting.key)) {
+                            element.checked = setting.value === 'enabled' || setting.value === true;
+                        } else {
+                            element.checked = !!setting.value;
+                        }
                     } else if (isTimeField(setting.key)) {
                         // Convert 24-hour to 12-hour format for time fields
                         convertAndSetTime(setting.key, setting.value);
                     } else if (setting.key.includes('_period')) {
                         // Handle AM/PM period settings
                         element.value = setting.value;
+                    } else if (isJsonField(setting.key)) {
+                        try {
+                            const jsonStr = typeof setting.value === 'string' ? setting.value : JSON.stringify(setting.value);
+                            element.value = jsonStr;
+                        } catch (e) {
+                            element.value = '[]';
+                        }
                     } else {
                         element.value = setting.value;
                     }
@@ -133,13 +147,20 @@ function populateSettingsForm(settings) {
                 const element = document.getElementById(key);
                 if (element) {
                     if (element.type === 'checkbox') {
-                        element.checked = value;
+                        element.checked = !!value;
                     } else if (isTimeField(key)) {
                         // Convert 24-hour to 12-hour format for time fields
                         convertAndSetTime(key, value);
                     } else if (key.includes('_period')) {
                         // Handle AM/PM period settings
                         element.value = value;
+                    } else if (isJsonField(key)) {
+                        try {
+                            const jsonStr = typeof value === 'string' ? value : JSON.stringify(value);
+                            element.value = jsonStr;
+                        } catch (e) {
+                            element.value = '[]';
+                        }
                     } else {
                         element.value = value;
                     }
@@ -274,6 +295,8 @@ function saveAllSettings() {
 }
 
 function collectFormData() {
+    const isJsonField = (key) => key === 'semester_names' || key === 'semester_start_months';
+    const isModuleSetting = (id) => id.startsWith('module_');
     const settings = [];
     const inputs = document.querySelectorAll('input, select, textarea');
     
@@ -282,11 +305,30 @@ function collectFormData() {
             let value = input.value;
             if (input.type === 'checkbox') {
                 value = input.checked;
+                
+                // For module settings, save as 'enabled' or 'disabled'
+                if (isModuleSetting(input.id)) {
+                    value = input.checked ? 'enabled' : 'disabled';
+                }
             } else if (isTimeField(input.id)) {
                 // Convert 12-hour format to 24-hour format for time fields
                 value = getTimeInputValue(input.id);
                 if (value) {
                     value = convert12to24(value);
+                }
+            } else if (isJsonField(input.id)) {
+                // Clean and validate JSON before sending
+                const trimmed = (value || '').trim();
+                if (trimmed.length === 0) {
+                    value = '[]';
+                } else {
+                    try {
+                        const parsed = JSON.parse(trimmed);
+                        value = JSON.stringify(parsed);
+                    } catch (e) {
+                        // Leave as-is; server will reject but we show a warning
+                        console.warn('Invalid JSON for', input.id, trimmed);
+                    }
                 }
             }
             
@@ -551,11 +593,39 @@ function handleImportFile(input) {
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
-                const settings = JSON.parse(e.target.result);
-                // Process imported settings
-                showAlert('Settings imported successfully', 'success');
-                loadSettings(); // Reload to show imported settings
+                const data = JSON.parse(e.target.result);
+                
+                // Send to API
+                updateSettingsStatus('Importing settings...', 'info');
+                
+                fetch('api/settings.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'import',
+                        ...data
+                    })
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        updateSettingsStatus('Settings imported successfully', 'success');
+                        showAlert('Settings imported successfully', 'success');
+                        loadSettings(); // Reload to show imported settings
+                    } else {
+                        updateSettingsStatus('Import failed', 'danger');
+                        showAlert('Failed to import settings: ' + result.message, 'danger');
+                    }
+                })
+                .catch(error => {
+                    updateSettingsStatus('Import error', 'danger');
+                    showAlert('Error importing settings', 'danger');
+                });
+                
             } catch (error) {
+                updateSettingsStatus('Invalid file format', 'danger');
                 showAlert('Invalid settings file', 'danger');
             }
         };
@@ -567,5 +637,129 @@ function resetAllSettings() {
     if (confirm('Are you sure you want to reset all settings to default values? This action cannot be undone.')) {
         showAlert('Settings reset to defaults', 'info');
         loadSettings(); // Reload to show default settings
+    }
+}
+
+// General Settings Functions
+
+let selectedLogoFile = null;
+
+function previewLogo(input) {
+    if (!input.files || !input.files[0]) return;
+    
+    const file = input.files[0];
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        input.value = '';
+        return;
+    }
+    
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+        alert('File size must be less than 2MB');
+        input.value = '';
+        return;
+    }
+    
+    selectedLogoFile = file;
+    
+    // Preview image
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('logoPreview').src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+async function uploadLogo() {
+    if (!selectedLogoFile) {
+        showAlert('Please select a logo file first', 'warning');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('logo', selectedLogoFile);
+    formData.append('action', 'upload_logo');
+    
+    try {
+        const response = await fetch('api/settings.php', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('Logo uploaded successfully', 'success');
+            document.getElementById('logoPreview').src = result.logo_url + '?t=' + Date.now();
+            selectedLogoFile = null;
+            document.getElementById('logoUpload').value = '';
+        } else {
+            showAlert('Failed to upload logo: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error uploading logo: ' + error.message, 'danger');
+    }
+}
+
+// Handle General Settings Form Submit
+const generalSettingsForm = document.getElementById('generalSettingsForm');
+if (generalSettingsForm) {
+    generalSettingsForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = {
+            project_name: document.getElementById('projectName').value,
+            project_short_name: document.getElementById('projectShortName').value,
+            project_tagline: document.getElementById('projectTagline').value
+        };
+        
+        fetch('api/settings.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                action: 'update_general_settings',
+                ...formData
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showAlert('General settings saved successfully', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showAlert('Failed to save settings: ' + result.message, 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Error saving settings: ' + error.message, 'danger');
+        });
+    });
+}
+
+function resetGeneralSettings() {
+    if (confirm('Are you sure you want to reset general settings to defaults?')) {
+        document.getElementById('projectName').value = 'QR Attendance System';
+        document.getElementById('projectShortName').value = 'QAS';
+        document.getElementById('projectTagline').value = '';
+        document.getElementById('logoUpload').value = '';
+        selectedLogoFile = null;
+        showAlert('General settings reset to defaults', 'info');
+    }
+}
+
+// Toggle password visibility for API keys
+function togglePasswordVisibility(inputId) {
+    const input = document.getElementById(inputId);
+    const button = event.target.closest('button');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        button.innerHTML = '<i class="bx bx-show"></i> Hide';
+    } else {
+        input.type = 'password';
+        button.innerHTML = '<i class="bx bx-hide"></i> Show';
     }
 }

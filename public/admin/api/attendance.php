@@ -1229,8 +1229,8 @@ function deleteAttendance() {
             return ['success' => false, 'error' => 'Attendance ID required'];
         }
         
-        // Get attendance info for logging
-        $stmt = $pdo->prepare("SELECT student_id FROM attendance WHERE id = ?");
+        // Get attendance info for logging and cleanup
+        $stmt = $pdo->prepare("SELECT student_id, status FROM attendance WHERE id = ?");
         $stmt->execute([$attendanceId]);
         $attendance = $stmt->fetch();
         
@@ -1238,9 +1238,25 @@ function deleteAttendance() {
             return ['success' => false, 'error' => 'Attendance record not found'];
         }
         
+        $studentId = $attendance['student_id'];
+        $status = $attendance['status'];
+        
+        // Start transaction
+        $pdo->beginTransaction();
+        
+        try {
+            // If deleting a Check-in status, also delete from check_in_sessions
+            if ($status === 'Check-in') {
+                $stmt = $pdo->prepare("DELETE FROM check_in_sessions WHERE student_id = ? AND is_active = 1");
+                $stmt->execute([$studentId]);
+        }
+        
         // Delete attendance record
         $stmt = $pdo->prepare("DELETE FROM attendance WHERE id = ?");
         $stmt->execute([$attendanceId]);
+            
+            // Commit transaction
+            $pdo->commit();
         
         // Log the action
         logAdminAction('ATTENDANCE_DELETED', "Deleted attendance record ID: $attendanceId");
@@ -1249,6 +1265,10 @@ function deleteAttendance() {
             'success' => true,
             'message' => 'Attendance record deleted successfully'
         ];
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
     } catch (Exception $e) {
         return ['success' => false, 'error' => $e->getMessage()];
     }
@@ -1393,12 +1413,27 @@ function bulkDeleteAttendance() {
         try {
             $placeholders = str_repeat('?,', count($ids) - 1) . '?';
             
-            // Get records for logging before deletion
-            $stmt = $pdo->prepare("SELECT id, student_id FROM attendance WHERE id IN ($placeholders)");
+            // Get records for logging and cleanup
+            $stmt = $pdo->prepare("SELECT id, student_id, status FROM attendance WHERE id IN ($placeholders)");
             $stmt->execute($ids);
             $records = $stmt->fetchAll();
             
-            // Delete records
+            // Get unique student IDs with Check-in status for cleanup
+            $checkinStudentIds = [];
+            foreach ($records as $record) {
+                if ($record['status'] === 'Check-in') {
+                    $checkinStudentIds[] = $record['student_id'];
+                }
+            }
+            
+            // If any Check-in records exist, clean up check_in_sessions
+            if (!empty($checkinStudentIds)) {
+                $checkinPlaceholders = str_repeat('?,', count($checkinStudentIds) - 1) . '?';
+                $stmt = $pdo->prepare("DELETE FROM check_in_sessions WHERE student_id IN ($checkinPlaceholders) AND is_active = 1");
+                $stmt->execute($checkinStudentIds);
+            }
+            
+            // Delete attendance records
             $stmt = $pdo->prepare("DELETE FROM attendance WHERE id IN ($placeholders)");
             $stmt->execute($ids);
             

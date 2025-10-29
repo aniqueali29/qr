@@ -1,7 +1,7 @@
 <?php
 /**
  * Students API
- * Handles student CRUD operations
+ * Handles student CRUD operations + semester/session filters
  */
 
 header('Content-Type: application/json');
@@ -17,6 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/helpers.php';
 
 // Require admin authentication
 if (!isAdminLoggedIn()) {
@@ -45,7 +46,7 @@ try {
             http_response_code(405);
             echo json_encode(['success' => false, 'error' => 'Method not allowed']);
     }
-} catch (Exception $e) {
+} catch (Throwable $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
 }
@@ -101,169 +102,113 @@ function handleDeleteRequest($action) {
 }
 
 /**
- * Get students list with pagination and filters
+ * Get students list with pagination and filters (program, shift, year_level, current_semester, session)
  */
 function getStudentsList() {
     global $pdo;
     
     try {
         $page = (int)($_GET['page'] ?? 1);
-        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
-        // Cap the limit to prevent DoS
-        $limit = min($limit, 10000);
+        $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 25;
+        $limit = min(max($limit, 1), 1000);
         $offset = ($page - 1) * $limit;
         
-        // Build WHERE clause
-        $whereConditions = ["s.is_active = 1"];
-        $params = [];
+        $where = ["s.is_active = 1"]; $params = [];
+        $joinSession = false;
         
-        // Apply filters
-        if (!empty($_GET['program'])) {
-            $whereConditions[] = "s.program = ?";
-            $params[] = $_GET['program'];
+        // Filters
+        if (!empty($_GET['program'])) { $where[] = "s.program = ?"; $params[] = $_GET['program']; }
+        if (!empty($_GET['shift'])) { $where[] = "s.shift = ?"; $params[] = $_GET['shift']; }
+        // Accept both 'year' and 'year_level' string labels (e.g., 'Semester 1')
+        if (!empty($_GET['year'])) { $where[] = "s.year_level = ?"; $params[] = $_GET['year']; }
+        if (!empty($_GET['year_level'])) { $where[] = "s.year_level = ?"; $params[] = $_GET['year_level']; }
+        // Numeric semester filter
+        if (!empty($_GET['semester']) || !empty($_GET['current_semester'])) {
+            $sem = (int)($_GET['current_semester'] ?? $_GET['semester']);
+            if ($sem > 0) { $where[] = "s.current_semester = ?"; $params[] = $sem; }
         }
-        
-        if (!empty($_GET['shift'])) {
-            $whereConditions[] = "s.shift = ?";
-            $params[] = $_GET['shift'];
-        }
-        
-        if (!empty($_GET['year'])) {
-            $whereConditions[] = "s.year_level = ?";
-            $params[] = $_GET['year'];
-        }
-        
-        if (!empty($_GET['section'])) {
-            $whereConditions[] = "s.section = ?";
-            $params[] = $_GET['section'];
-        }
-        
-        if (!empty($_GET['search'])) {
-            // Sanitize and validate search term
-            $search = filter_var($_GET['search'], FILTER_SANITIZE_SPECIAL_CHARS);
-            
-            // Limit length to prevent DoS
-            if (strlen($search) > 100) {
-                return ['success' => false, 'error' => 'Search term too long'];
+        // Enrollment session filter: accept id or code
+        if (!empty($_GET['session'])) {
+            $sessionParam = trim($_GET['session']);
+            if (ctype_digit($sessionParam)) {
+                $where[] = "s.enrollment_session_id = ?"; $params[] = (int)$sessionParam;
+            } else {
+                $joinSession = true;
+                $where[] = "sess.code = ?"; $params[] = $sessionParam;
             }
-            
-            // Remove SQL wildcards from user input
-            $search = str_replace(['%', '_'], ['\\%', '\\_'], $search);
-            
-            $whereConditions[] = "(s.student_id LIKE ? OR s.name LIKE ? OR s.email LIKE ?)";
-            $searchTerm = '%' . $search . '%';
-            $params[] = $searchTerm;
-            $params[] = $searchTerm;
-            $params[] = $searchTerm;
         }
+        if (!empty($_GET['section'])) { $where[] = "s.section = ?"; $params[] = $_GET['section']; }
+        if (!empty($_GET['search'])) {
+            $search = filter_var($_GET['search'], FILTER_SANITIZE_SPECIAL_CHARS);
+            if (strlen($search) > 100) { return ['success' => false, 'error' => 'Search term too long']; }
+            $search = str_replace(['%','_'], ['\\%','\\_'], $search);
+            $where[] = "(s.student_id LIKE ? OR s.name LIKE ? OR s.email LIKE ?)";
+            $like = "%$search%"; array_push($params, $like, $like, $like);
+        }
+        $whereClause = implode(' AND ', $where);
         
-        $whereClause = implode(' AND ', $whereConditions);
+        // Count
+        $countSql = "SELECT COUNT(*) AS total FROM students s" . ($joinSession ? " LEFT JOIN enrollment_sessions sess ON sess.id = s.enrollment_session_id" : "") . " WHERE $whereClause";
+        $stmt = $pdo->prepare($countSql); $stmt->execute($params); $total = (int)$stmt->fetch()['total'];
         
-        // Get total count
-        $countSql = "SELECT COUNT(*) as total FROM students s WHERE $whereClause";
-        $stmt = $pdo->prepare($countSql);
-        $stmt->execute($params);
-        $total = $stmt->fetch()['total'];
-        
-        // Get students with attendance percentage
+        // Data
         $sql = "
             SELECT 
-                s.id,
-                s.student_id as roll_number,
-                s.name,
-                s.email,
-                s.phone,
-                s.program,
-                s.shift,
-                s.year_level,
-                s.section,
-                COALESCE(s.attendance_percentage, 0) as attendance_percentage
+              s.id,
+              s.student_id AS roll_number,
+              s.name,
+              s.email,
+              s.phone,
+              s.program,
+              s.shift,
+              s.year_level,
+              s.current_semester,
+              s.section,
+              s.enrollment_session_id,
+              sess.code AS session_code,
+              sess.label AS session_label,
+              COALESCE(s.attendance_percentage, 0) AS attendance_percentage
             FROM students s
+            LEFT JOIN enrollment_sessions sess ON sess.id = s.enrollment_session_id
             WHERE $whereClause
             ORDER BY s.student_id
             LIMIT $limit OFFSET $offset
         ";
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-        $students = $stmt->fetchAll();
-        
-        $totalPages = ceil($total / $limit);
+        $stmt = $pdo->prepare($sql); $stmt->execute($params); $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         return [
             'success' => true,
-            'data' => [
-                'students' => $students,
-                'pagination' => [
-                    'current_page' => $page,
-                    'total_pages' => $totalPages,
-                    'total_records' => $total,
-                    'per_page' => $limit
-                ]
+            'data' => $rows,
+            'pagination' => [
+                'current_page' => $page,
+                'total_pages' => (int)ceil($total / $limit),
+                'total_records' => $total,
+                'per_page' => $limit
             ]
         ];
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         return ['success' => false, 'error' => $e->getMessage()];
     }
 }
 
-/**
- * Get student details
- */
+/** Get student details */
 function getStudentDetails() {
     global $pdo;
-    
     try {
-        $studentId = $_GET['id'] ?? 0;
-        
-        if (!$studentId) {
-            return ['success' => false, 'error' => 'Student ID required'];
-        }
-        
-        $stmt = $pdo->prepare("
-            SELECT 
-                s.id,
-                s.student_id as roll_number,
-                s.name,
-                s.email,
-                s.phone,
-                s.program,
-                s.shift,
-                s.year_level,
-                s.section,
-                s.created_at,
-                s.updated_at as last_login
-            FROM students s
-            WHERE s.id = ? AND s.is_active = 1
-        ");
-        $stmt->execute([$studentId]);
-        $student = $stmt->fetch();
-        
-        if (!$student) {
-            return ['success' => false, 'error' => 'Student not found'];
-        }
-        
-        return [
-            'success' => true,
-            'data' => $student
-        ];
-    } catch (Exception $e) {
-        return ['success' => false, 'error' => $e->getMessage()];
-    }
+        $studentId = (int)($_GET['id'] ?? 0);
+        if ($studentId <= 0) return ['success' => false, 'error' => 'Student ID required'];
+        $stmt = $pdo->prepare("SELECT s.*, sess.code AS session_code, sess.label AS session_label FROM students s LEFT JOIN enrollment_sessions sess ON sess.id = s.enrollment_session_id WHERE s.id = ? AND s.is_active = 1");
+        $stmt->execute([$studentId]); $student = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$student) return ['success' => false, 'error' => 'Student not found'];
+        return ['success' => true, 'data' => $student];
+    } catch (Throwable $e) { return ['success' => false, 'error' => $e->getMessage()]; }
 }
 
-/**
- * Create new student
- */
+/** Create new student */
 function createStudent() {
     global $pdo;
-    
     try {
-        // Validate CSRF token
-        if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
-            return ['success' => false, 'error' => 'Invalid CSRF token'];
-        }
-        
+        if (!validateCSRFToken($_POST['csrf_token'] ?? '')) { return ['success' => false, 'error' => 'Invalid CSRF token']; }
         $rollNumber = sanitizeInput($_POST['roll_number'] ?? '');
         $name = sanitizeInput($_POST['name'] ?? '');
         $email = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
@@ -272,142 +217,49 @@ function createStudent() {
         $shift = sanitizeInput($_POST['shift'] ?? '');
         $yearLevel = sanitizeInput($_POST['year_level'] ?? '');
         $section = sanitizeInput($_POST['section'] ?? '');
+        $currentSemester = isset($_POST['current_semester']) ? (int)$_POST['current_semester'] : null;
+        $sessionCode = trim($_POST['enrollment_session_code'] ?? '');
+        $sessionId = isset($_POST['enrollment_session_id']) && ctype_digit((string)$_POST['enrollment_session_id']) ? (int)$_POST['enrollment_session_id'] : null;
         
-        // Validate required fields first
-        if (empty($rollNumber) || empty($name) || empty($email) || empty($program) || empty($shift) || empty($yearLevel) || empty($section)) {
+        if (!$rollNumber || !$name || !$program || !$shift || !$yearLevel || !$section) {
             return ['success' => false, 'error' => 'All required fields must be filled'];
         }
+        if (!preg_match("/^[a-zA-Z\s\-'.]+$/u", $name)) return ['success' => false, 'error' => 'Invalid name'];
+        if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) return ['success' => false, 'error' => 'Invalid email'];
+        if ($currentSemester !== null && ($currentSemester < 1 || $currentSemester > 12)) return ['success' => false, 'error' => 'Invalid semester'];
+        if (!preg_match('/^\\d{2}-[A-Z]{3,4}-\\d{4,6}$/', $rollNumber)) return ['success' => false, 'error' => 'Invalid roll number format'];
         
-        // Validate name format (letters, spaces, hyphens, apostrophes, dots only)
-        if (!preg_match("/^[a-zA-Z\s\-'.]+$/u", $name)) {
-            return ['success' => false, 'error' => 'Name can only contain letters, spaces, hyphens, apostrophes, and dots'];
+        // Resolve session by code if provided
+        if (!$sessionId && $sessionCode) {
+            $sess = get_session_by_code($sessionCode);
+            if (!$sess) return ['success' => false, 'error' => 'Unknown session code'];
+            $sessionId = (int)$sess['id'];
         }
         
-        // Validate name length
-        if (strlen($name) < 2) {
-            return ['success' => false, 'error' => 'Name must be at least 2 characters long'];
-        }
-        
-        if (strlen($name) > 100) {
-            return ['success' => false, 'error' => 'Name must not exceed 100 characters'];
-        }
-        
-        // Validate email format
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return ['success' => false, 'error' => 'Invalid email format'];
-        }
-        
-        // Validate email length
-        if (strlen($email) > 255) {
-            return ['success' => false, 'error' => 'Email must not exceed 255 characters'];
-        }
-        
-        // Validate phone number if provided
-        if (!empty($phone)) {
-            // Remove common separators for validation
-            $phoneDigits = preg_replace('/[\s\-()]/', '', $phone);
-            
-            // Check if it contains only valid characters (digits, +, -, spaces, parentheses)
-            if (!preg_match('/^[\d\s\-+()]+$/', $phone)) {
-                return ['success' => false, 'error' => 'Phone number can only contain digits, spaces, hyphens, plus sign, and parentheses'];
-            }
-            
-            // Check length (must have 10-15 digits)
-            $digitCount = preg_match_all('/\d/', $phoneDigits);
-            if (strlen($phoneDigits) < 10 || strlen($phoneDigits) > 15) {
-                return ['success' => false, 'error' => 'Phone number must contain 10 to 15 digits'];
-            }
-        }
-        
-        // Validate roll number format (YY-PROGRAM-NN or YY-EPROGRAM-NN)
-        if (!preg_match('/^\d{2}-[A-Z]+\-\d+$/', $rollNumber)) {
-            return ['success' => false, 'error' => 'Invalid roll number format. Expected: YY-PROGRAM-NN (e.g., 24-SWT-01)'];
-        }
-        
-        // Use transaction to prevent race condition
         $pdo->beginTransaction();
-        
         try {
-            // Check if roll number already exists with row lock
             $stmt = $pdo->prepare("SELECT id FROM students WHERE student_id = ? OR roll_number = ? FOR UPDATE");
-            $stmt->execute([$rollNumber, $rollNumber]);
-            if ($stmt->fetch()) {
-                $pdo->rollBack();
-                return ['success' => false, 'error' => 'Roll number already exists'];
-            }
+            $stmt->execute([$rollNumber, $rollNumber]); if ($stmt->fetch()) { $pdo->rollBack(); return ['success' => false, 'error' => 'Roll number already exists']; }
+            if ($email) { $stmt = $pdo->prepare("SELECT id FROM students WHERE email = ? FOR UPDATE"); $stmt->execute([$email]); if ($stmt->fetch()) { $pdo->rollBack(); return ['success' => false, 'error' => 'Email already exists']; } }
             
-            // Check if email already exists with row lock
-            $stmt = $pdo->prepare("SELECT id FROM students WHERE email = ? FOR UPDATE");
-            $stmt->execute([$email]);
-            if ($stmt->fetch()) {
-                $pdo->rollBack();
-                return ['success' => false, 'error' => 'Email already exists'];
-            }
-        
-            // Generate default password (roll number)
-            $password = $rollNumber;
-            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-            
-            // Create student in students table only
-            $admissionYear = '20' . substr($rollNumber, 0, 2);
-            $rollPrefix = explode('-', $rollNumber)[1];
-            
-            $stmt = $pdo->prepare("
-                INSERT INTO students (student_id, roll_number, name, email, phone, program, shift, year_level, section, admission_year, roll_prefix, password, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-            ");
-            $stmt->execute([
-                $rollNumber, $rollNumber, $name, $email, $phone, $program, $shift, $yearLevel, $section, $admissionYear, $rollPrefix, $hashedPassword
-            ]);
-            
+            $password = $rollNumber; $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            $admissionYear = (int)('20' . substr($rollNumber, 0, 2)); $rollPrefix = explode('-', $rollNumber)[1];
+            $stmt = $pdo->prepare("INSERT INTO students (student_id, roll_number, name, email, phone, program, shift, year_level, current_semester, section, admission_year, enrollment_session_id, roll_prefix, password, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW())");
+            $stmt->execute([$rollNumber, $rollNumber, $name, $email, $phone, $program, $shift, $yearLevel, $currentSemester, $section, $admissionYear, $sessionId, $rollPrefix, $hashedPassword]);
             $studentId = $pdo->lastInsertId();
-            
-            // Commit transaction
             $pdo->commit();
-            
-            // Log the action
             logAdminAction('STUDENT_CREATED', "Created student: $rollNumber ($name)");
-            
-            return [
-                'success' => true,
-                'message' => 'Student created successfully',
-                'data' => [
-                    'id' => $studentId,
-                    'roll_number' => $rollNumber,
-                    'password' => $password
-                ]
-            ];
-        } catch (PDOException $e) {
-            $pdo->rollBack();
-            error_log("Student creation error: " . $e->getMessage());
-            return ['success' => false, 'error' => 'Failed to create student'];
-        }
-    } catch (Exception $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        return ['success' => false, 'error' => $e->getMessage()];
-    }
+            return ['success' => true, 'message' => 'Student created successfully', 'data' => ['id' => $studentId, 'roll_number' => $rollNumber, 'password' => $password]];
+        } catch (Throwable $e) { $pdo->rollBack(); return ['success' => false, 'error' => 'Failed to create student']; }
+    } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); return ['success' => false, 'error' => $e->getMessage()]; }
 }
 
-/**
- * Update student
- */
+/** Update student */
 function updateStudent() {
     global $pdo;
-    
     try {
-        $studentId = $_GET['id'] ?? 0;
-        
-        if (!$studentId) {
-            return ['success' => false, 'error' => 'Student ID required'];
-        }
-        
-        // Validate CSRF token
-        if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
-            return ['success' => false, 'error' => 'Invalid CSRF token'];
-        }
-        
+        $studentId = (int)($_GET['id'] ?? 0); if ($studentId <= 0) return ['success' => false, 'error' => 'Student ID required'];
+        if (!validateCSRFToken($_POST['csrf_token'] ?? '')) return ['success' => false, 'error' => 'Invalid CSRF token'];
         $name = sanitizeInput($_POST['name'] ?? '');
         $email = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
         $phone = sanitizeInput($_POST['phone'] ?? '');
@@ -415,206 +267,51 @@ function updateStudent() {
         $shift = sanitizeInput($_POST['shift'] ?? '');
         $yearLevel = sanitizeInput($_POST['year_level'] ?? '');
         $section = sanitizeInput($_POST['section'] ?? '');
+        $currentSemester = isset($_POST['current_semester']) ? (int)$_POST['current_semester'] : null;
+        $sessionCode = trim($_POST['enrollment_session_code'] ?? '');
+        $sessionId = isset($_POST['enrollment_session_id']) && ctype_digit((string)$_POST['enrollment_session_id']) ? (int)$_POST['enrollment_session_id'] : null;
+        if (!$name || !$program || !$shift || !$yearLevel || !$section) return ['success' => false, 'error' => 'All required fields must be filled'];
+        if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) return ['success' => false, 'error' => 'Invalid email'];
+        if ($currentSemester !== null && ($currentSemester < 1 || $currentSemester > 12)) return ['success' => false, 'error' => 'Invalid semester'];
+        if (!$sessionId && $sessionCode) { $sess = get_session_by_code($sessionCode); if ($sess) $sessionId = (int)$sess['id']; else return ['success' => false, 'error' => 'Unknown session code']; }
+        if ($email) { $stmt = $pdo->prepare("SELECT id FROM students WHERE email = ? AND id != ?"); $stmt->execute([$email, $studentId]); if ($stmt->fetch()) return ['success' => false, 'error' => 'Email already exists']; }
         
-        // Validate required fields
-        if (empty($name) || empty($email) || empty($program) || empty($shift) || empty($yearLevel) || empty($section)) {
-            return ['success' => false, 'error' => 'All required fields must be filled'];
-        }
-        
-        // Validate name format (letters, spaces, hyphens, apostrophes, dots only)
-        if (!preg_match("/^[a-zA-Z\s\-'.]+$/u", $name)) {
-            return ['success' => false, 'error' => 'Name can only contain letters, spaces, hyphens, apostrophes, and dots'];
-        }
-        
-        // Validate name length
-        if (strlen($name) < 2) {
-            return ['success' => false, 'error' => 'Name must be at least 2 characters long'];
-        }
-        
-        if (strlen($name) > 100) {
-            return ['success' => false, 'error' => 'Name must not exceed 100 characters'];
-        }
-        
-        // Validate email format
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return ['success' => false, 'error' => 'Invalid email format'];
-        }
-        
-        // Validate email length
-        if (strlen($email) > 255) {
-            return ['success' => false, 'error' => 'Email must not exceed 255 characters'];
-        }
-        
-        // Validate phone number if provided
-        if (!empty($phone)) {
-            // Remove common separators for validation
-            $phoneDigits = preg_replace('/[\s\-()]/', '', $phone);
-            
-            // Check if it contains only valid characters (digits, +, -, spaces, parentheses)
-            if (!preg_match('/^[\d\s\-+()]+$/', $phone)) {
-                return ['success' => false, 'error' => 'Phone number can only contain digits, spaces, hyphens, plus sign, and parentheses'];
-            }
-            
-            // Check length (must have 10-15 digits)
-            $digitCount = preg_match_all('/\d/', $phoneDigits);
-            if (strlen($phoneDigits) < 10 || strlen($phoneDigits) > 15) {
-                return ['success' => false, 'error' => 'Phone number must contain 10 to 15 digits'];
-            }
-        }
-        
-        // Check if email already exists for another student
-        $stmt = $pdo->prepare("SELECT id FROM students WHERE email = ? AND id != ?");
-        $stmt->execute([$email, $studentId]);
-        if ($stmt->fetch()) {
-            return ['success' => false, 'error' => 'Email already exists'];
-        }
-        
-        // Update student in students table
-        $stmt = $pdo->prepare("
-            UPDATE students 
-            SET name = ?, email = ?, phone = ?, program = ?, shift = ?, year_level = ?, section = ?, updated_at = NOW()
-            WHERE id = ? AND is_active = 1
-        ");
-        $stmt->execute([$name, $email, $phone, $program, $shift, $yearLevel, $section, $studentId]);
-        
-        if ($stmt->rowCount() === 0) {
-            return ['success' => false, 'error' => 'Student not found'];
-        }
-        
-        // Log the action
+        $stmt = $pdo->prepare("UPDATE students SET name=?, email=?, phone=?, program=?, shift=?, year_level=?, current_semester = COALESCE(?, current_semester), section=?, enrollment_session_id = COALESCE(?, enrollment_session_id), updated_at = NOW() WHERE id = ? AND is_active = 1");
+        $stmt->execute([$name, $email, $phone, $program, $shift, $yearLevel, $currentSemester, $section, $sessionId, $studentId]);
+        if ($stmt->rowCount() === 0) return ['success' => false, 'error' => 'Student not found'];
         logAdminAction('STUDENT_UPDATED', "Updated student ID: $studentId");
-        
-        return [
-            'success' => true,
-            'message' => 'Student updated successfully'
-        ];
-    } catch (Exception $e) {
-        return ['success' => false, 'error' => $e->getMessage()];
-    }
+        return ['success' => true, 'message' => 'Student updated successfully'];
+    } catch (Throwable $e) { return ['success' => false, 'error' => $e->getMessage()]; }
 }
 
-/**
- * Delete student
- */
+/** Delete student */
 function deleteStudent() {
     global $pdo;
-    
     try {
-        $studentId = $_GET['id'] ?? 0;
-        
-        if (!$studentId) {
-            return ['success' => false, 'error' => 'Student ID required'];
-        }
-        
-        // Get student info for logging
-        $stmt = $pdo->prepare("SELECT username, name FROM users WHERE id = ? AND role = 'student'");
-        $stmt->execute([$studentId]);
-        $student = $stmt->fetch();
-        
-        if (!$student) {
-            return ['success' => false, 'error' => 'Student not found'];
-        }
-        
-        // Start transaction
+        $studentId = (int)($_GET['id'] ?? 0); if ($studentId <= 0) return ['success' => false, 'error' => 'Student ID required'];
+        // If you keep users table, adapt accordingly; keeping previous behavior
         $pdo->beginTransaction();
-        
         try {
-            // Delete attendance records
-            $stmt = $pdo->prepare("DELETE FROM attendance WHERE user_id = ?");
-            $stmt->execute([$studentId]);
-            
-            // Delete user
-            $stmt = $pdo->prepare("DELETE FROM users WHERE id = ? AND role = 'student'");
-            $stmt->execute([$studentId]);
-            
+            $stmt = $pdo->prepare("DELETE FROM attendance WHERE user_id = ?"); $stmt->execute([$studentId]);
+            $stmt = $pdo->prepare("DELETE FROM students WHERE id = ?"); $stmt->execute([$studentId]);
             $pdo->commit();
-            
-            // Log the action
-            logAdminAction('STUDENT_DELETED', "Deleted student: {$student['username']} ({$student['name']})");
-            
-            return [
-                'success' => true,
-                'message' => 'Student deleted successfully'
-            ];
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            throw $e;
-        }
-    } catch (Exception $e) {
-        return ['success' => false, 'error' => $e->getMessage()];
-    }
+            logAdminAction('STUDENT_DELETED', "Deleted student ID: {$studentId}");
+            return ['success' => true, 'message' => 'Student deleted successfully'];
+        } catch (Throwable $e) { $pdo->rollBack(); throw $e; }
+    } catch (Throwable $e) { return ['success' => false, 'error' => $e->getMessage()]; }
 }
 
-/**
- * Export students
- */
+/** Export students */
 function exportStudents() {
     global $pdo;
-    
     try {
-        // Get all students (no pagination for export)
-        $sql = "
-            SELECT 
-                u.username as roll_number,
-                u.name,
-                u.email,
-                u.phone,
-                u.program,
-                u.shift,
-                u.year_level,
-                u.section,
-                u.created_at,
-                COALESCE(att.attendance_percentage, 0) as attendance_percentage
-            FROM users u
-            LEFT JOIN (
-                SELECT 
-                    user_id,
-                    ROUND(
-                        (COUNT(CASE WHEN status = 'present' THEN 1 END) * 100.0 / 
-                         NULLIF(COUNT(*), 0)), 2
-                    ) as attendance_percentage
-                FROM attendance 
-                GROUP BY user_id
-            ) att ON u.id = att.user_id
-            WHERE u.role = 'student' AND u.is_active = 1
-            ORDER BY u.username
-        ";
-        
-        $stmt = $pdo->query($sql);
-        $students = $stmt->fetchAll();
-        
-        // Set headers for CSV download
-        header('Content-Type: text/csv');
-        header('Content-Disposition: attachment; filename="students_' . date('Y-m-d') . '.csv"');
-        
-        $output = fopen('php://output', 'w');
-        
-        // CSV headers
-        fputcsv($output, [
-            'Roll Number', 'Name', 'Email', 'Phone', 'Program', 'Shift', 
-            'Year Level', 'Section', 'Attendance %', 'Created At'
-        ]);
-        
-        // CSV data
-        foreach ($students as $student) {
-            fputcsv($output, [
-                $student['roll_number'],
-                $student['name'],
-                $student['email'],
-                $student['phone'],
-                $student['program'],
-                $student['shift'],
-                $student['year_level'],
-                $student['section'],
-                $student['attendance_percentage'],
-                $student['created_at']
-            ]);
-        }
-        
-        fclose($output);
-        exit();
-    } catch (Exception $e) {
-        return ['success' => false, 'error' => $e->getMessage()];
-    }
+        $sql = "SELECT s.student_id AS roll_number, s.name, s.email, s.phone, s.program, s.shift, s.year_level, s.current_semester, s.section, sess.label AS session_label, COALESCE(s.attendance_percentage,0) AS attendance_percentage, s.created_at FROM students s LEFT JOIN enrollment_sessions sess ON sess.id = s.enrollment_session_id WHERE s.is_active = 1 ORDER BY s.student_id";
+        $stmt = $pdo->query($sql); $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        header('Content-Type: text/csv'); header('Content-Disposition: attachment; filename="students_' . date('Y-m-d') . '.csv"');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Roll Number','Name','Email','Phone','Program','Shift','Year Level','Current Semester','Session','Attendance %','Created At']);
+        foreach ($students as $s) { fputcsv($out, [$s['roll_number'],$s['name'],$s['email'],$s['phone'],$s['program'],$s['shift'],$s['year_level'],$s['current_semester'],$s['session_label'],$s['attendance_percentage'],$s['created_at']]); }
+        fclose($out); exit();
+    } catch (Throwable $e) { return ['success' => false, 'error' => $e->getMessage()]; }
 }
 ?>

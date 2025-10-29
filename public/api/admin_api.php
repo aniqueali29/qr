@@ -56,7 +56,7 @@ function requireAuth() {
         try {
             $stmt = $pdo->prepare("
                 SELECT s.id, s.last_activity, u.is_active 
-                FROM sessions s 
+                FROM auth_sessions s 
                 JOIN users u ON s.user_id = u.id 
                 WHERE s.id = ? AND s.user_id = ? AND u.is_active = 1
             ");
@@ -69,7 +69,7 @@ function requireAuth() {
                     echo json_encode(['success' => false, 'error' => 'Session expired', 'message' => 'Please log in again']);
                     exit();
                 }
-                $stmt = $pdo->prepare("UPDATE sessions SET last_activity = NOW() WHERE id = ?");
+                $stmt = $pdo->prepare("UPDATE auth_sessions SET last_activity = NOW() WHERE id = ?");
                 $stmt->execute([$sessionId]);
             }
             // If no matching DB session found, proceed based on role (fallback)

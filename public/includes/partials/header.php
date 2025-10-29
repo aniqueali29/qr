@@ -15,11 +15,11 @@ $pageJS = $pageJS ?? [];
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
     
-    <title><?php echo sanitizeOutput($pageTitle); ?> - <?php echo STUDENT_SITE_NAME; ?></title>
-    <meta name="description" content="Student Portal - QR Attendance System" />
+    <title><?php echo sanitizeOutput($pageTitle); ?> - <?php echo function_exists('getStudentProjectName') ? getStudentProjectName() : STUDENT_SITE_NAME; ?></title>
+    <meta name="description" content="Student Portal - <?php echo function_exists('getStudentProjectName') ? getStudentProjectName() : 'QR Attendance System'; ?>" />
     
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="<?php echo getStudentAssetUrl('img/favicon/favicon.ico'); ?>" />
+    <link rel="icon" href="<?php echo function_exists('getStudentFaviconUrl') ? getStudentFaviconUrl() : getStudentAssetUrl('img/favicon/favicon.ico'); ?>" />
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

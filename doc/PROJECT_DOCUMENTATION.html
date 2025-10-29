@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- <title>QR Code Based Attendance Management System - Documentation</title> -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            line-height: 1.8;
+            color: #2c3e50;
+            background: #f5f6fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            border: 1px solid #ddd;
+        }
+
+
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin: 50px 0;
+            scroll-margin-top: 20px;
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            font-size: 2em;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #34495e;
+            position: relative;
+            font-weight: 400;
+        }
+
+        .section h2::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 80px;
+            height: 2px;
+            background: #7f8c8d;
+        }
+
+        .section h3 {
+            color: #34495e;
+            font-size: 1.5em;
+            margin: 30px 0 20px;
+            font-weight: 500;
+        }
+
+        .section h4 {
+            color: #2c3e50;
+            font-size: 1.2em;
+            margin: 20px 0 15px;
+            font-weight: 500;
+        }
+
+        .feature-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 4px;
+            margin: 20px 0;
+            /* border-left: 3px solid #7f8c8d; */
+            transition: background 0.3s ease;
+        }
+
+        .feature-box:hover {
+            background: #ececec;
+        }
+
+        .feature-box ul {
+            margin-left: 20px;
+        }
+
+        .feature-box li {
+            margin: 10px 0;
+            line-height: 1.7;
+        }
+
+        .highlight {
+            background: #fff9e6;
+            padding: 20px;
+            border-radius: 4px;
+            /* border-left: 3px solid #95a5a6; */
+            margin: 25px 0;
+        }
+
+        .info-box {
+            background: #f0f7ff;
+            padding: 20px;
+            border-radius: 4px;
+            /* border-left: 3px solid #95a5a6; */
+            margin: 25px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0;
+            background: white;
+            border: 1px solid #dee2e6;
+        }
+
+        table th {
+            background: #34495e;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .tech-item {
+            background: #e9ecef;
+            color: #2c3e50;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 0.95em;
+            font-weight: 500;
+            border: 1px solid #dee2e6;
+        }
+
+        .tech-item:hover {
+            background: #dee2e6;
+        }
+
+        .code-block {
+            background: #2f3640;
+            color: #dfe6e9;
+            padding: 20px;
+            border-radius: 4px;
+            margin: 20px 0;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.7;
+            border: 1px solid #2c3e50;
+        }
+
+        .screenshot-placeholder {
+            background: #f8f9fa;
+            padding: 60px;
+            border-radius: 4px;
+            text-align: center;
+            margin: 20px 0;
+            color: #7f8c8d;
+            font-style: italic;
+            border: 1px dashed #dee2e6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .screenshot-placeholder img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid #dee2e6;
+        }
+
+        .screenshot-placeholder:has(img) {
+            padding: 20px;
+            background: transparent;
+            border: none;
+        }
+
+
+        .architecture {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            margin: 20px 0;
+        }
+
+        ul, ol {
+            margin-left: 25px;
+        }
+
+        li {
+            margin: 10px 0;
+            line-height: 1.7;
+        }
+
+        strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        @media print {
+            @page {
+                size: A4;
+                margin: 1.5cm;
+                /* Suppress default headers and footers */
+                margin-top: 1.5cm;
+                margin-bottom: 1.5cm;
+            }
+            
+            body {
+                background: white;
+                padding: 0;
+                font-size: 12pt;
+                line-height: 1.6;
+                /* Suppress url in print */
+                -webkit-print-color-adjust: exact;
+            }
+            
+            .container {
+                box-shadow: none;
+                border: none;
+                max-width: 100%;
+            }
+            
+            .section {
+                page-break-before: always;
+                page-break-inside: avoid;
+                margin: 20px 0;
+            }
+            
+            table {
+                page-break-inside: avoid;
+            }
+            
+            .screenshot-placeholder {
+                page-break-inside: avoid;
+            }
+            
+            /* Hide all unnecessary elements */
+            div[style*="display: none"] {
+                display: none !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="content">
+            <div style="background: #fff9e6; padding: 15px; border: 1px solid #95a5a6; margin-bottom: 20px; border-radius: 4px; text-align: center; display: none;">
+                <p style="margin: 0; font-size: 14px;"><strong>📄 To Print Without URL:</strong> Press Ctrl+P → Uncheck "Headers and footers" → Print</p>
+            </div>
+            
+            <section id="overview" class="section">
+                <h2>1. Project Overview</h2>
+
+                <div class="feature-box">
+                    <h4>Project Title</h4>
+                    <p>QR Code Based Attendance Management System for Universities</p>
+                </div>
+
+                <p><strong>Problem Statement:</strong> Traditional attendance management is time-consuming, error-prone, and allows proxy attendance. Existing systems lack automation and real-time tracking capabilities.</p>
+
+                <p><strong>Solution:</strong> A comprehensive QR Code-based Attendance Management System that automates attendance recording, prevents proxy attendance, provides real-time analytics, and includes automated administrative tasks like student promotion and absent marking.</p>
+
+                <div class="highlight">
+                    <strong>🎯 Project Objectives:</strong>
+                    <ul>
+                        <li>Develop secure, efficient, and user-friendly attendance management system</li>
+                        <li>Implement QR code-based attendance for quick and accurate recording</li>
+                        <li>Automate administrative tasks (promotion, absent marking, backups)</li>
+                        <li>Ensure data security and user privacy</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="features" class="section">
+                <h2>2. Key Features</h2>
+
+                <h3>Admin Dashboard</h3>
+                <div class="feature-box">
+                    <ul>
+                        <li>Real-time attendance statistics and analytics</li>
+                        <li>Complete student management (CRUD operations)</li>
+                        <li>QR code generation and management</li>
+                        <li>Real-time attendance scanning</li>
+                        <li>Comprehensive reports and exports (PDF, CSV, Excel)</li>
+                    </ul>
+                </div>
+
+                <h3>Student Portal</h3>
+                <div class="feature-box">
+                    <ul>
+                        <li>View personal attendance history</li>
+                        <li>Check today's attendance status</li>
+                        <li>View attendance statistics</li>
+                        <li>Download attendance reports</li>
+                    </ul>
+                </div>
+
+                <h3>Automation</h3>
+                <div class="feature-box">
+                    <ul>
+                        <li>Automatic student promotion based on semester progression</li>
+                        <li>Automatic absent marking for students who don't check-in/out by deadline</li>
+                        <li>Automatic database backups (daily/weekly/monthly)</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section id="technology" class="section">
+                <h2>3. Technology Stack</h2>
+
+                <h3>Frontend Technologies</h3>
+                <div class="tech-stack">
+                    <div class="tech-item">HTML5</div>
+                    <div class="tech-item">CSS3</div>
+                    <div class="tech-item">JavaScript (ES6+)</div>
+                    <div class="tech-item">Bootstrap 5</div>
+                    <div class="tech-item">ApexCharts.js</div>
+                </div>
+
+                <h3>Backend Technologies</h3>
+                <div class="tech-stack">
+                    <div class="tech-item">PHP 7.4+</div>
+                    <div class="tech-item">MySQL 5.7+</div>
+                    <div class="tech-item">PDO</div>
+                    <div class="tech-item">RESTful API</div>
+                </div>
+
+                <h3>Third-Party Libraries</h3>
+                <div class="tech-stack">
+                    <div class="tech-item">PHPMailer</div>
+                    <div class="tech-item">Simple QR Code</div>
+                    <div class="tech-item">FPDF</div>
+                    <div class="tech-item">jQuery</div>
+                </div>
+
+                <div class="info-box">
+                    <strong>💡 Note:</strong> All technologies used are open-source and free. The system requires minimal server resources and is designed for scalability.
+                </div>
+            </section>
+
+            <section id="screenshots" class="section">
+                <h2>4. System Screenshots</h2>
+
+                <div class="screenshot-placeholder">
+                    <img src="img/admin_dashboard.png" alt="Admin Dashboard">
+                </div>
+
+                <div class="screenshot-placeholder">
+                    <img src="img/std_management.png" alt="Student Management">
+                </div>
+
+                <div class="screenshot-placeholder">
+                    <img src="img/scan.png" alt="QR Scanner Interface">
+                </div>
+
+                <div class="screenshot-placeholder">
+                    <img src="img/report.png" alt="Attendance Reports">
+                </div>
+
+                <div class="screenshot-placeholder">
+                    <img src="img/std_portal.png" alt="Student Portal Dashboard">
+                </div>
+            </section>
+
+            <section id="budget" class="section">
+                <h2>5. Project Budget</h2>
+
+                <table>
+                    <tr>
+                        <th>Sr.</th>
+                        <th>Aspects</th>
+                        <th>Amount PKR:</th>
+                    </tr>
+                    <tr>
+                        <td>1</td>
+                        <td>Backend Development & API Integration</td>
+                        <td>30,000</td>
+                    </tr>
+                    <tr>
+                        <td>2</td>
+                        <td>Frontend Development & UI/UX</td>
+                        <td>18,000</td>
+                    </tr>
+                    <tr>
+                        <td>3</td>
+                        <td>System Security & Encryption</td>
+                        <td>12,000</td>
+                    </tr>
+                    <tr>
+                        <td>4</td>
+                        <td>Performance Optimization & Testing</td>
+                        <td>7,000</td>
+                    </tr>
+                    <tr>
+                        <td>5</td>
+                        <td>Deployment & Server Configuration</td>
+                        <td>3,000</td>
+                    </tr>
+                    <tr style="border-top: 2px solid #2c3e50;">
+                        <td colspan="2" style="text-align: right; font-weight: 600;">Total Budget:</td>
+                        <td style="font-weight: 600;">70,000</td>
+                    </tr>
+                </table>
+
+                <div class="feature-box" style="margin-top: 30px;">
+                    <p><strong>Note:</strong> Total budget well within PKR 70,000 limit. All technologies used are open-source and free. Domain and hosting costs excluded as per requirements.</p>
+                </div>
+            </section>
+
+            <section id="conclusion" class="section">
+                <h2>6. Conclusion</h2>
+
+                <h3>6.1 Project Summary</h3>
+                <p>This QR Code-based Attendance Management System provides a complete, automated solution for university attendance tracking. The system eliminates manual processes, prevents proxy attendance, and automates critical administrative tasks.</p>
+
+                <h3>6.3 Benefits</h3>
+                <div class="info-box">
+                    <strong>For Administrators:</strong> Saves 80% of time on attendance management, eliminates human errors, generates comprehensive reports instantly, and enables data-driven decisions.
+                </div>
+
+                <div class="info-box">
+                    <strong>For Students:</strong> Quick and convenient attendance marking, real-time access to attendance records, transparent tracking, and downloadable reports anytime.
+                </div>
+
+                <div class="highlight">
+                    <strong>📚 Academic Impact:</strong> This project demonstrates practical application of computer science principles including database management, web development, automation, and security implementation. It provides a scalable solution that can be deployed in educational institutions of any size.
+                </div>
+            </section>
+        </div>
+    </div>
+</body>
+</html>

@@ -20,17 +20,22 @@ class AdminAuth {
      */
     public function login($username, $password, $remember = false) {
         try {
-            // Find admin user
+            // First, find the user without checking is_active to determine account status
             $stmt = $this->pdo->prepare("
                 SELECT id, username, email, password_hash, role, is_active, last_login 
                 FROM users 
-                WHERE (username = ? OR email = ?) AND role = 'admin' AND is_active = 1
+                WHERE (username = ? OR email = ?) AND role IN ('staff', 'admin', 'superadmin')
             ");
             $stmt->execute([$username, $username]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$user) {
                 return ['success' => false, 'message' => 'Invalid credentials'];
+            }
+            
+            // Check if account is active
+            if ($user['is_active'] != 1) {
+                return ['success' => false, 'message' => 'Your account has been suspended. Please contact your administrator.'];
             }
             
             // Verify password
@@ -85,12 +90,31 @@ class AdminAuth {
         $ip_address = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
         
-        // Use existing sessions table
-        $stmt = $this->pdo->prepare("
-            INSERT INTO sessions (id, user_id, ip_address, user_agent, last_activity) 
-            VALUES (?, ?, ?, ?, NOW())
-        ");
-        $stmt->execute([$session_id, $user_id, $ip_address, $user_agent]);
+        try {
+            // Ensure dedicated auth sessions table exists (avoid conflict with academic sessions table)
+            $this->pdo->exec(<<<SQL
+                CREATE TABLE IF NOT EXISTS auth_sessions (
+                    id VARCHAR(64) PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    ip_address VARCHAR(45) NULL,
+                    user_agent TEXT NULL,
+                    last_activity TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_user_id (user_id),
+                    CONSTRAINT fk_auth_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            SQL);
+
+            // Insert session into auth_sessions
+            $stmt = $this->pdo->prepare("
+                INSERT INTO auth_sessions (id, user_id, ip_address, user_agent, last_activity)
+                VALUES (?, ?, ?, ?, NOW())
+            ");
+            $stmt->execute([$session_id, $user_id, $ip_address, $user_agent]);
+            
+        } catch (Exception $e) {
+            throw $e;
+        }
         
         return $session_id;
     }
@@ -117,7 +141,7 @@ class AdminAuth {
             try {
                 $stmt = $this->pdo->prepare("
                     SELECT s.id, s.last_activity, u.is_active 
-                    FROM sessions s 
+                    FROM auth_sessions s 
                     JOIN users u ON s.user_id = u.id 
                     WHERE s.id = ? AND s.user_id = ? AND u.is_active = 1
                 ");
@@ -130,7 +154,7 @@ class AdminAuth {
                 }
                 
                 // Update last activity
-                $stmt = $this->pdo->prepare("UPDATE sessions SET last_activity = NOW() WHERE id = ?");
+                $stmt = $this->pdo->prepare("UPDATE auth_sessions SET last_activity = NOW() WHERE id = ?");
                 $stmt->execute([$_SESSION['admin_session_id']]);
                 
             } catch (Exception $e) {
@@ -165,7 +189,7 @@ class AdminAuth {
         if (isset($_SESSION['admin_session_id'])) {
             try {
                 // Remove session from database
-                $stmt = $this->pdo->prepare("DELETE FROM sessions WHERE id = ?");
+                $stmt = $this->pdo->prepare("DELETE FROM auth_sessions WHERE id = ?");
                 $stmt->execute([$_SESSION['admin_session_id']]);
             } catch (Exception $e) {
                 // Log error but continue with logout

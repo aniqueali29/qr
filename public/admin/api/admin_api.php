@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../../includes/academic.php';
 
 header('Content-Type: application/json');
 
@@ -74,6 +75,25 @@ if (isset($action)) {
                 $stmt->execute([$limit, $offset]);
                 $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+                // Fill display year/semester if missing
+                try {
+                    $ctx = determine_academic_context();
+                    $mode = $ctx['config']['mode'] ?? 'year';
+                    foreach ($students as &$s) {
+                        if (!isset($s['year_level']) || $s['year_level'] === '' || $s['year_level'] === null || $s['year_level'] === '-') {
+                            if ($mode === 'semester') {
+                                $s['year_level'] = $ctx['current_semester_name'] ?? 'Semester 1';
+                            } else {
+                                $adm = isset($s['admission_year']) && $s['admission_year'] ? (int)$s['admission_year'] : (int)('20' . substr($s['student_id'] ?? $s['roll_number'] ?? '', 0, 2));
+                                $yn = compute_year_of_study($adm);
+                                $ordMap = [1=>'1st',2=>'2nd',3=>'3rd',4=>'4th',5=>'5th',6=>'6th'];
+                                $s['year_level'] = $ordMap[$yn] ?? ($yn . 'th');
+                            }
+                        }
+                    }
+                    unset($s);
+                } catch (Throwable $e) { /* ignore */ }
+
                 $totalStudents = $pdo->query("SELECT COUNT(*) FROM students")->fetchColumn();
 
                 $response = [
@@ -107,6 +127,24 @@ if (isset($action)) {
                     $filters[] = "s.year_level = ?";
                     $params[] = $_GET['year_level'] ?? $_GET['year'];
                 }
+                // Current semester filter
+                if (!empty($_GET['current_semester'])) {
+                    $filters[] = "s.current_semester = ?";
+                    $params[] = (int)$_GET['current_semester'];
+                }
+                // Session filter
+                $joinSession = false;
+                if (!empty($_GET['session'])) {
+                    $sessionParam = trim($_GET['session']);
+                    if (ctype_digit($sessionParam)) {
+                        $filters[] = "s.enrollment_session_id = ?";
+                        $params[] = (int)$sessionParam;
+                    } else {
+                        $joinSession = true;
+                        $filters[] = "sess.code = ?";
+                        $params[] = $sessionParam;
+                    }
+                }
                 if (!empty($_GET['section'])) {
                     $filters[] = "s.section = ?";
                     $params[] = $_GET['section'];
@@ -125,8 +163,13 @@ if (isset($action)) {
 
                 $whereClause = count($filters) > 0 ? "WHERE " . implode(" AND ", $filters) : "";
 
-                // Get total count
-                $stmt = $pdo->prepare("SELECT COUNT(*) FROM students s $whereClause");
+                // Get total count (add session join if needed)
+                $countSql = "SELECT COUNT(*) FROM students s";
+                if ($joinSession) {
+                    $countSql .= " LEFT JOIN enrollment_sessions sess ON sess.id = s.enrollment_session_id";
+                }
+                $countSql .= " $whereClause";
+                $stmt = $pdo->prepare($countSql);
                 $stmt->execute($params);
                 $totalStudents = $stmt->fetchColumn();
 
@@ -134,9 +177,12 @@ if (isset($action)) {
                 $stmt = $pdo->prepare("
                     SELECT s.*, 
                            COUNT(a.id) as attendance_count,
-                           ROUND((COUNT(a.id) / GREATEST(DATEDIFF(CURDATE(), s.created_at), 1)) * 100, 2) as attendance_percentage
+                           ROUND((COUNT(a.id) / GREATEST(DATEDIFF(CURDATE(), s.created_at), 1)) * 100, 2) as attendance_percentage,
+                           sess.code AS session_code,
+                           sess.label AS session_label
                     FROM students s
                     LEFT JOIN attendance a ON s.student_id = a.student_id
+                    LEFT JOIN enrollment_sessions sess ON sess.id = s.enrollment_session_id
                     $whereClause
                     GROUP BY s.id
                     ORDER BY s.name ASC
@@ -144,6 +190,25 @@ if (isset($action)) {
                 ");
                 $stmt->execute(array_merge($params, [$limit, $offset]));
                 $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                // Fill display year/semester if missing
+                try {
+                    $ctx = determine_academic_context();
+                    $mode = $ctx['config']['mode'] ?? 'year';
+                    foreach ($students as &$s) {
+                        if (!isset($s['year_level']) || $s['year_level'] === '' || $s['year_level'] === null || $s['year_level'] === '-') {
+                            if ($mode === 'semester') {
+                                $s['year_level'] = $ctx['current_semester_name'] ?? 'Semester 1';
+                            } else {
+                                $adm = isset($s['admission_year']) && $s['admission_year'] ? (int)$s['admission_year'] : (int)('20' . substr($s['student_id'] ?? $s['roll_number'] ?? '', 0, 2));
+                                $yn = compute_year_of_study($adm);
+                                $ordMap = [1=>'1st',2=>'2nd',3=>'3rd',4=>'4th',5=>'5th',6=>'6th'];
+                                $s['year_level'] = $ordMap[$yn] ?? ($yn . 'th');
+                            }
+                        }
+                    }
+                    unset($s);
+                } catch (Throwable $e) { /* ignore */ }
 
                 $response = [
                     'success' => true,
@@ -299,7 +364,30 @@ if (isset($action)) {
                 $section = $_POST['section'] ?? '';
                 $admissionYear = $_POST['admission_year'] ?? '';
                 
-                if (empty($rollNumber) || empty($name) || empty($email) || empty($program) || empty($shift) || empty($yearLevel) || empty($section)) {
+                // Derive admission year from roll if missing
+                if (empty($admissionYear) && preg_match('/^(\d{2})-[A-Za-z]{3,4}-\d{4,6}$/', $rollNumber, $m)) {
+                    $admissionYear = 2000 + (int)$m[1];
+                }
+                
+                // If year level not provided, compute a sensible default from academic settings
+                if (empty($yearLevel)) {
+                    try {
+                        $ctx = determine_academic_context();
+                        $mode = $ctx['config']['mode'] ?? 'year';
+                        if ($mode === 'semester') {
+                            $yearLevel = $ctx['current_semester_name'] ?? 'Semester 1';
+                        } else {
+                            $yearNum = compute_year_of_study((int)$admissionYear);
+                            $ord = ['1st','2nd','3rd'][$yearNum-1] ?? ($yearNum . 'th');
+                            $yearLevel = $ord;
+                        }
+                    } catch (Throwable $e) {
+                        // Fallback to 1st if anything goes wrong
+                        $yearLevel = '1st';
+                    }
+                }
+                
+                if (empty($rollNumber) || empty($name) || empty($program) || empty($shift) || empty($yearLevel) || empty($section)) {
                     $response = ['success' => false, 'message' => 'All required fields must be filled.'];
                     break;
                 }
@@ -362,7 +450,29 @@ if (isset($action)) {
                 $section = $_POST['section'] ?? '';
                 $admissionYear = $_POST['admission_year'] ?? '';
                 
-                if (empty($id) || empty($rollNumber) || empty($name) || empty($email) || empty($program) || empty($shift) || empty($yearLevel) || empty($section)) {
+                // Derive admission year from roll if missing
+                if (empty($admissionYear) && preg_match('/^(\d{2})-[A-Za-z]{3,4}-\d{4,6}$/', $rollNumber, $m)) {
+                    $admissionYear = 2000 + (int)$m[1];
+                }
+                
+                // If year level missing on update, compute default
+                if (empty($yearLevel)) {
+                    try {
+                        $ctx = determine_academic_context();
+                        $mode = $ctx['config']['mode'] ?? 'year';
+                        if ($mode === 'semester') {
+                            $yearLevel = $ctx['current_semester_name'] ?? 'Semester 1';
+                        } else {
+                            $yearNum = compute_year_of_study((int)$admissionYear);
+                            $ord = ['1st','2nd','3rd'][$yearNum-1] ?? ($yearNum . 'th');
+                            $yearLevel = $ord;
+                        }
+                    } catch (Throwable $e) {
+                        $yearLevel = '1st';
+                    }
+                }
+                
+                if (empty($id) || empty($rollNumber) || empty($name) || empty($program) || empty($shift) || empty($yearLevel) || empty($section)) {
                     $response = ['success' => false, 'message' => 'All required fields must be filled.'];
                     break;
                 }

@@ -219,10 +219,13 @@ const UIHelpers = {
         const toastId = 'toast-' + Date.now();
         const toast = document.createElement('div');
         toast.id = toastId;
-        toast.className = 'toast';
-        toast.setAttribute('role', 'alert');
-        toast.setAttribute('aria-live', 'assertive');
-        toast.setAttribute('aria-atomic', 'true');
+        
+        const bgMap = {
+            success: 'bg-success',
+            danger: 'bg-danger',
+            warning: 'bg-warning',
+            info: 'bg-primary'
+        };
         
         const iconMap = {
             success: 'bx-check-circle',
@@ -232,12 +235,19 @@ const UIHelpers = {
         };
         
         const icon = iconMap[type] || iconMap.info;
+        const bgClass = bgMap[type] || bgMap.info;
+        
+        // Use template's bs-toast class and styling
+        toast.className = `bs-toast toast ${bgClass}`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
         
         toast.innerHTML = `
-            <div class="toast-header bg-${type} text-white">
+            <div class="toast-header">
                 <i class="bx ${icon} me-2"></i>
                 <strong class="me-auto">${type.charAt(0).toUpperCase() + type.slice(1)}</strong>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
             </div>
             <div class="toast-body">
                 ${message}
@@ -247,7 +257,10 @@ const UIHelpers = {
         container.appendChild(toast);
         
         // Show toast
-        const bsToast = new bootstrap.Toast(toast, { delay: duration });
+        const bsToast = new bootstrap.Toast(toast, { 
+            autohide: true,
+            delay: duration 
+        });
         bsToast.show();
         
         // Remove toast after hiding

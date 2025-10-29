@@ -11,10 +11,28 @@ require_once 'includes/helpers.php';
 // Require admin authentication
 requireAdminAuth();
 
+// Check if user has access (unless superadmin)
+if (!isSuperAdmin() && !staffHasAccess('settings.php')) {
+    header('Location: index.php?error=access_denied');
+    exit();
+}
+
 $pageTitle = "System Settings";
 $currentPage = "settings";
 $pageCSS = ['css/settings.css'];
 $pageJS = ['js/settings.js'];
+
+// Load general settings for branding
+$generalSettings = [];
+try {
+    $stmt = $pdo->prepare("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('sidebar_logo', 'project_name', 'project_short_name', 'project_tagline')");
+    $stmt->execute();
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $generalSettings[$row['setting_key']] = $row['setting_value'];
+    }
+} catch (Exception $e) {
+    error_log("General settings load error: " . $e->getMessage());
+}
 
 include 'partials/header.php';
 include 'partials/sidebar.php';
@@ -57,13 +75,13 @@ include 'partials/navbar.php';
         </div>
 
         <!-- Navigation Tabs -->
-        <div class="row">
+        <div class="row mt-3">
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
                         <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link active" id="timings-tab" data-bs-toggle="tab" data-bs-target="#timings" type="button" role="tab">
+                                <button class="nav-link <?php echo !isSuperAdmin() ? 'active' : ''; ?>" id="timings-tab" data-bs-toggle="tab" data-bs-target="#timings" type="button" role="tab">
                                     <i class="bx bx-time me-1"></i>Shift Timings
                                 </button>
                             </li>
@@ -72,11 +90,30 @@ include 'partials/navbar.php';
                                     <i class="bx bx-slider me-1"></i>System Config
                                 </button>
                             </li>
+                            <?php if (isSuperAdmin()): ?>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="modules-tab" data-bs-toggle="tab" data-bs-target="#modules" type="button" role="tab">
+                                    <i class="bx bx-grid me-1"></i>Modules
+                                </button>
+                            </li>
+                            <?php endif; ?>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="staff-tab" data-bs-toggle="tab" data-bs-target="#staff" type="button" role="tab">
+                                    <i class="bx bx-group me-1"></i>Staff
+                                </button>
+                            </li>
+                            <?php if (isSuperAdmin()): ?>
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link" id="advanced-tab" data-bs-toggle="tab" data-bs-target="#advanced" type="button" role="tab">
                                     <i class="bx bx-cog me-1"></i>Advanced
                                 </button>
                             </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab">
+                                    <i class="bx bx-palette me-1"></i>General
+                                </button>
+                            </li>
+                            <?php endif; ?>
                         </ul>
                     </div>
                 </div>
@@ -86,7 +123,7 @@ include 'partials/navbar.php';
         <!-- Tab Content -->
         <div class="tab-content" id="settingsTabContent">
             <!-- Shift Timings Tab -->
-            <div class="tab-pane fade show active" id="timings" role="tabpanel">
+            <div class="tab-pane fade <?php echo !isSuperAdmin() ? 'show active' : ''; ?>" id="timings" role="tabpanel">
                 <div class="row">
                     <!-- Morning Shift Settings -->
                     <div class="col-lg-6 mb-4">
@@ -293,32 +330,40 @@ include 'partials/navbar.php';
                                         </select>
                                         <div class="form-text">System timezone</div>
                                     </div>
-                                    <div class="col-12">
-                                        <label for="academic_year_start_month" class="form-label">Academic Year Start Month</label>
-                                        <select class="form-select" id="academic_year_start_month">
-                                            <option value="1">January</option>
-                                            <option value="2">February</option>
-                                            <option value="3">March</option>
-                                            <option value="4">April</option>
-                                            <option value="5">May</option>
-                                            <option value="6">June</option>
-                                            <option value="7">July</option>
-                                            <option value="8">August</option>
-                                            <option value="9" selected>September</option>
-                                            <option value="10">October</option>
-                                            <option value="11">November</option>
-                                            <option value="12">December</option>
-                                        </select>
-                                        <div class="form-text">When the academic year starts</div>
-                                    </div>
                                     
                                     <div class="col-12">
-                                        <label for="max_program_years" class="form-label">Program Duration (Years)</label>
+                                        <label for="max_program_years" class="form-label">Program Duration</label>
                                         <select class="form-select" id="max_program_years">
-                                            <option value="3">3 Years</option>
-                                            <option value="4" selected>4 Years</option>
+                                            <option value="3">3</option>
+                                            <option value="4" selected>4</option>
+                                            <option value="5">5</option>
+                                            <option value="6">6</option>
                                         </select>
-                                        <div class="form-text">Maximum years in program before graduation</div>
+                                        <div class="form-text">Maximum duration before graduation</div>
+                                    </div>
+
+
+                                    <div class="col-12">
+                                        <label for="semesters_per_year" class="form-label">Semesters Per Year</label>
+                                        <select class="form-select" id="semesters_per_year">
+                                            <option value="1">1</option>
+                                            <option value="2" selected>2</option>
+                                            <option value="3">3</option>
+                                            <option value="4">4</option>
+                                        </select>
+                                        <div class="form-text">Number of semesters in the academic cycle</div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label for="semester_names" class="form-label">Semester Names (JSON)</label>
+                                        <textarea class="form-control" id="semester_names" rows="2">["Semester 1","Semester 2"]</textarea>
+                                        <div class="form-text">JSON array, e.g., ["Fall","Spring"]</div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label for="semester_start_months" class="form-label">Semester Start Months (JSON)</label>
+                                        <input type="text" class="form-control" id="semester_start_months" value="[9,2]">
+                                        <div class="form-text">JSON array of months (1-12) corresponding to semester starts</div>
                                     </div>
                                 </div>
                             </div>
@@ -336,14 +381,14 @@ include 'partials/navbar.php';
                             <div class="card-body">
                                 <div class="row g-3">
                                     <div class="col-12">
-                                        <label for="auto_absent_morning_hour" class="form-label">Morning Auto-Absent Hour</label>
-                                        <input type="number" class="form-control" id="auto_absent_morning_hour" value="11" min="8" max="16">
-                                        <div class="form-text">Hour to mark morning shift absent (24h format)</div>
+                                        <label for="auto_morning_checkin_end" class="form-label">Morning Check-in Deadline</label>
+                                        <input type="text" class="form-control" id="auto_morning_checkin_end" placeholder="11:00:00">
+                                        <div class="form-text">Time to mark morning shift absent if no check-in (HH:MM:SS format)</div>
                                     </div>
                                     <div class="col-12">
-                                        <label for="auto_absent_evening_hour" class="form-label">Evening Auto-Absent Hour</label>
-                                        <input type="number" class="form-control" id="auto_absent_evening_hour" value="17" min="14" max="20">
-                                        <div class="form-text">Hour to mark evening shift absent (24h format)</div>
+                                        <label for="auto_evening_checkin_end" class="form-label">Evening Check-in Deadline</label>
+                                        <input type="text" class="form-control" id="auto_evening_checkin_end" placeholder="17:00:00">
+                                        <div class="form-text">Time to mark evening shift absent if no check-in (HH:MM:SS format)</div>
                                     </div>
                                     <div class="col-12">
                                         <div class="form-check">
@@ -352,7 +397,15 @@ include 'partials/navbar.php';
                                                 Enable Auto-Absent Feature
                                             </label>
                                         </div>
-                                        <div class="form-text">Automatically mark students as absent at specified times</div>
+                                        <div class="form-text">
+                                            Automatically mark students as absent at specified times (runs via cron at 9:00 PM daily)
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="alert alert-warning">
+                                            <i class="bx bx-info-circle me-2"></i>
+                                            <strong>Note:</strong> Ensure the Windows Task Scheduler is set up using <code>setup_cron.bat</code> for this feature to work.
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -370,14 +423,14 @@ include 'partials/navbar.php';
                                 </h5>
                             </div>
                             <div class="card-body">
-                                <div class="alert alert-info mb-3 mt-2">
+                                <div class="alert alert-info mb-3 mt-3">
                                     <i class="bx bx-info-circle me-2"></i>
-                                    <strong>Annual Student Promotion:</strong> Promote all students to the next year level at the end of academic year (after 11 months).
+                                    <strong>Semester-based Promotion:</strong> The system uses semester-only progression. Use the tool below to advance students and graduate final-semester students.
                                 </div>
                                 <div class="d-flex align-items-center justify-content-between">
                                     <div>
                                         <h6 class="mb-1">Bulk Student Promotion</h6>
-                                        <p class="text-muted mb-0 small">Promote all students to next year or mark final year students as graduated</p>
+                                        <p class="text-muted mb-0 small">Promote students to the next semester or mark final-semester students as graduated</p>
                                     </div>
                                     <a href="promote_students.php" class="btn btn-primary">
                                         <i class="bx bx-trending-up me-1"></i> Manage Promotions
@@ -388,7 +441,244 @@ include 'partials/navbar.php';
                     </div>
                 </div>
             </div>
+            <!-- Modules Tab -->
+            <div class="tab-pane fade" id="modules" role="tabpanel">
+                <div class="row">
+                    <div class="col-12 mb-4">
+                        <div class="card border-info">
+                            <div class="card-header bg-label-info">
+                                <h5 class="card-title mb-0">
+                                    <i class="bx bx-info-circle me-2"></i>Module Management
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info mb-4 mt-3">
+                                    <i class="bx bx-info-circle me-2"></i>
+                                    <strong>Control Module Visibility:</strong> Toggle modules on or off to control which pages are accessible in the admin panel. Disabled modules will be hidden from the sidebar.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
+                <div class="row">
+                    <!-- Core Modules -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bx bx-layer me-2"></i>Core Modules
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <i class="bx bx-clipboard me-2 text-primary"></i>Attendance Module
+                                                </h6>
+                                                <p class="text-muted mb-0 small">View and manage attendance records</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="module_attendance" checked>
+                                                <label class="form-check-label" for="module_attendance"></label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <i class="bx bx-calendar me-2 text-info"></i>Sessions Module
+                                                </h6>
+                                                <p class="text-muted mb-0 small">Manage enrollment sessions</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="module_sessions" checked>
+                                                <label class="form-check-label" for="module_sessions"></label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <i class="bx bx-bar-chart-alt-2 me-2 text-success"></i>Reports Module
+                                                </h6>
+                                                <p class="text-muted mb-0 small">Generate attendance reports and analytics</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="module_reports" checked>
+                                                <label class="form-check-label" for="module_reports"></label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <i class="bx bx-laptop me-2 text-warning"></i>Programs & Sections Module
+                                                </h6>
+                                                <p class="text-muted mb-0 small">Manage academic programs and sections</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="module_program_sections" checked>
+                                                <label class="form-check-label" for="module_program_sections"></label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <i class="bx bx-trending-up me-2 text-secondary"></i>Student Promotion Module
+                                                </h6>
+                                                <p class="text-muted mb-0 small">Promote students and manage graduations</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="module_promote_students" checked>
+                                                <label class="form-check-label" for="module_promote_students"></label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Additional Modules -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bx bx-extension me-2"></i>Additional Modules
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <i class="bx bx-qr-scan me-2 text-danger"></i>Scan Module
+                                                </h6>
+                                                <p class="text-muted mb-0 small">QR code scanning for check-in/out</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="module_scan" checked>
+                                                <label class="form-check-label" for="module_scan"></label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="d-flex justify-content-between align-items-center p-3 border rounded">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <i class="bx bx-user me-2 text-primary"></i>Students Module
+                                                </h6>
+                                                <p class="text-muted mb-0 small">Manage student records and information</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="module_students" checked>
+                                                <label class="form-check-label" for="module_students"></label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="d-flex justify-content-between align-items-center p-3 border rounded bg-light">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <i class="bx bx-home-smile me-2 text-info"></i>Dashboard
+                                                </h6>
+                                                <p class="text-muted mb-0 small">Main dashboard overview (cannot be disabled)</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="module_dashboard" checked disabled>
+                                                <label class="form-check-label" for="module_dashboard"></label>
+                                            </div>
+                                        </div>
+                                        <div class="text-muted text-center mt-2">
+                                            <small><i class="bx bx-info-circle me-1"></i>Core module - always enabled</small>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <div class="d-flex justify-content-between align-items-center p-3 border rounded bg-light">
+                                            <div>
+                                                <h6 class="mb-1">
+                                                    <i class="bx bx-cog me-2 text-secondary"></i>Settings
+                                                </h6>
+                                                <p class="text-muted mb-0 small">System configuration (cannot be disabled)</p>
+                                            </div>
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="module_settings" checked disabled>
+                                                <label class="form-check-label" for="module_settings"></label>
+                                            </div>
+                                        </div>
+                                        <div class="text-muted text-center mt-2">
+                                            <small><i class="bx bx-info-circle me-1"></i>Core module - always enabled</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card border-warning">
+                            <div class="card-body">
+                                <div class="alert alert-warning mb-0">
+                                    <i class="bx bx-error me-2"></i>
+                                    <strong>Note:</strong> Changes will take effect after saving and refreshing the page. Disabled modules will be hidden from the sidebar navigation.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staff Management Tab -->
+            <div class="tab-pane fade" id="staff" role="tabpanel">
+                <div class="row">
+                    <div class="col-12 mb-4">
+                        <div class="card border-primary">
+                            <div class="card-header bg-label-primary">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bx bx-group me-2"></i>Staff Management
+                                    </h5>
+                                    <button class="btn btn-primary btn-sm" onclick="openAddStaffModal()">
+                                        <i class="bx bx-plus me-1"></i>Add Staff
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body mt-3">
+                                <div class="alert alert-info mb-3 mt-3">
+                                    <i class="bx bx-info-circle me-2"></i>
+                                    <strong>Manage Staff Accounts:</strong> Create and manage staff accounts with granular page access control. Only Super Admin can access this feature.
+                                </div>
+                                <div id="staff-list-container">
+                                    <div class="text-center py-5">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading staff...</span>
+                                        </div>
+                                        <p class="mt-2">Loading staff accounts...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Advanced Tab -->
             <div class="tab-pane fade" id="advanced" role="tabpanel">
@@ -545,6 +835,110 @@ include 'partials/navbar.php';
                     </div>
                 </div>
             </div>
+
+            <!-- General Settings Tab -->
+            <?php if (isSuperAdmin()): ?>
+            <div class="tab-pane fade show active" id="general" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-12 mb-4">
+                                <h5 class="mb-3">
+                                    <i class="bx bx-palette me-2"></i>Branding & General Settings
+                                </h5>
+                                <p class="text-muted">Manage your system's logo and project name</p>
+                            </div>
+                        </div>
+                        
+                        <form id="generalSettingsForm">
+                            <div class="row">
+                                <!-- Logo Upload Section -->
+                                <div class="col-12 col-lg-6 mb-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0"><i class="bx bx-image me-2"></i>System Logo</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="text-center mb-3">
+                                                <img src="<?php 
+                                                    $logo = $generalSettings['sidebar_logo'] ?? '';
+                                                    if ($logo) {
+                                                        echo htmlspecialchars('../' . $logo);
+                                                    } else {
+                                                        // Show placeholder or default
+                                                        echo 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjUwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDI1MCAxMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRleHQgeD0iNTAlIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjIwIiBmaWxsPSIjNjY2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+TG9nbyBQcmV2aWV3PC90ZXh0Pjwvc3ZnPg==';
+                                                    }
+                                                ?>" 
+                                                     alt="System Logo" 
+                                                     id="logoPreview" 
+                                                     class="img-thumbnail" 
+                                                     style="max-width: 250px; max-height: 100px; object-fit: contain;">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="logoUpload" class="form-label">Upload New Logo</label>
+                                                <input type="file" class="form-control" id="logoUpload" accept="image/*" onchange="previewLogo(this)">
+                                                <div class="form-text">Supported formats: JPG, PNG, GIF. Max size: 2MB</div>
+                                            </div>
+                                            <button type="button" class="btn btn-primary btn-sm" onclick="uploadLogo()">
+                                                <i class="bx bx-upload me-1"></i>Upload Logo
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Project Name Section -->
+                                <div class="col-12 col-lg-6 mb-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0"><i class="bx bx-edit me-2"></i>Project Name</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="mb-3">
+                                                <label for="projectName" class="form-label">Project Name</label>
+                                                <input type="text" class="form-control" id="projectName" 
+                                                       name="project_name" 
+                                                       value="<?php echo htmlspecialchars($generalSettings['project_name'] ?? 'QR Attendance System'); ?>" 
+                                                       placeholder="Enter project name">
+                                                <div class="form-text">This name will appear in emails, PDFs, and student cards</div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="projectShortName" class="form-label">Project Short Name</label>
+                                                <input type="text" class="form-control" id="projectShortName" 
+                                                       name="project_short_name" 
+                                                       value="<?php echo htmlspecialchars($generalSettings['project_short_name'] ?? 'QAS'); ?>" 
+                                                       placeholder="Enter short name">
+                                                <div class="form-text">Used in document headers and quick references</div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="projectTagline" class="form-label">Tagline (Optional)</label>
+                                                <input type="text" class="form-control" id="projectTagline" 
+                                                       name="project_tagline" 
+                                                       value="<?php echo htmlspecialchars($generalSettings['project_tagline'] ?? ''); ?>" 
+                                                       placeholder="Enter tagline">
+                                                <div class="form-text">A short descriptive phrase for your system</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-secondary" onclick="resetGeneralSettings()">
+                                            <i class="bx bx-refresh me-1"></i>Reset
+                                        </button>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bx bx-save me-1"></i>Save General Settings
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
     <!-- / Content -->
@@ -559,7 +953,7 @@ include 'partials/navbar.php';
                         document.write(new Date().getFullYear());
                     </script>
                     , made with ❤️ by
-                    <a href="#" target="_blank" class="footer-link">QR Attendance System</a>
+                    <a href="https://sharelimitless.com/" target="_blank" class="footer-link">Sharelimitless.com</a>
                 </div>
                 <div class="d-none d-lg-inline-block">
                     <a href="#" class="footer-link me-4">Documentation</a>
@@ -595,8 +989,350 @@ include 'partials/navbar.php';
 <!-- Time Utils -->
 <script src="<?php echo getAdminAssetUrl('../../assets/js/time-utils.js'); ?>"></script>
 
+<!-- Staff Management Modals -->
+<!-- Add/Edit Staff Modal -->
+<div class="modal fade" id="addStaffModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addStaffModalTitle">Add Staff Account</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addStaffForm">
+                <div class="modal-body">
+                    <input type="hidden" id="staff-user-id" name="user_id">
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="staff-username" class="form-label">Username *</label>
+                            <input type="text" class="form-control" id="staff-username" name="username" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="staff-email" class="form-label">Email *</label>
+                            <input type="email" class="form-control" id="staff-email" name="email" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="staff-password" class="form-label">Password *</label>
+                            <input type="password" class="form-control" id="staff-password" name="password" required>
+                            <div class="form-text" id="password-hint">Min. 8 characters</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="staff-status" class="form-label">Status *</label>
+                            <select class="form-select" id="staff-status" name="status" required>
+                                <option value="1">Active</option>
+                                <option value="0">Inactive</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="staff-role" class="form-label">Role *</label>
+                            <select class="form-select" id="staff-role" name="role" required>
+                                <option value="staff">Staff - Limited Access</option>
+                                <option value="admin">Admin - Full Access</option>
+                                <option value="superadmin">Super Admin - Complete Control</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <hr>
+                            <h6 class="mb-3">Page Access Permissions</h6>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-dashboard" value="index.php" name="permissions[]">
+                                        <label class="form-check-label" for="perm-dashboard">Dashboard</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-students" value="students.php" name="permissions[]">
+                                        <label class="form-check-label" for="perm-students">Students</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-attendance" value="attendances.php" name="permissions[]">
+                                        <label class="form-check-label" for="perm-attendance">Attendance</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-sessions" value="sessions.php" name="permissions[]">
+                                        <label class="form-check-label" for="perm-sessions">Sessions</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-scan" value="scan.php" name="permissions[]">
+                                        <label class="form-check-label" for="perm-scan">Scan</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-programs" value="program_sections.php" name="permissions[]">
+                                        <label class="form-check-label" for="perm-programs">Programs & Sections</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-reports" value="reports.php" name="permissions[]">
+                                        <label class="form-check-label" for="perm-reports">Reports</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="perm-settings" value="settings.php" name="permissions[]">
+                                        <label class="form-check-label" for="perm-settings">Settings</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bx bx-save me-1"></i>Save Staff
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Page JS -->
 <script src="<?php echo getAdminAssetUrl('js/settings.js'); ?>"></script>
+
+<script>
+// Staff Management JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+    loadStaffList();
+});
+
+function loadStaffList() {
+    fetch('api/staff.php?action=list')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderStaffList(data.data);
+            } else {
+                document.getElementById('staff-list-container').innerHTML = '<div class="alert alert-danger">' + data.error + '</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading staff:', error);
+            document.getElementById('staff-list-container').innerHTML = '<div class="alert alert-danger">Error loading staff list</div>';
+        });
+}
+
+function renderStaffList(staff) {
+    const container = document.getElementById('staff-list-container');
+    
+    if (staff.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No staff accounts found. Click "Add Staff" to create one.</div>';
+        return;
+    }
+    
+    let html = '<div class="table-responsive"><table class="table table-hover"><thead><tr>';
+    html += '<th>Username</th><th>Email</th><th>Role</th><th>Pages Allowed</th><th>Status</th><th>Last Login</th><th>Actions</th>';
+    html += '</tr></thead><tbody>';
+    
+    // Get current user ID and role from the page
+    const currentUserId = <?php echo isset($_SESSION['admin_user_id']) ? $_SESSION['admin_user_id'] : 0; ?>;
+    const currentUserRole = '<?php echo isset($_SESSION['admin_role']) ? $_SESSION['admin_role'] : ''; ?>';
+    
+    staff.forEach(member => {
+        let roleBadge;
+        if (member.role === 'superadmin') {
+            roleBadge = '<span class="badge bg-danger">Super Admin</span>';
+        } else if (member.role === 'admin') {
+            roleBadge = '<span class="badge bg-warning">Admin</span>';
+        } else {
+            roleBadge = '<span class="badge bg-info">Staff</span>';
+        }
+        
+        // Determine action buttons based on role and current user
+        let actionButtons;
+        if (member.role === 'superadmin') {
+            actionButtons = '<button class="btn btn-sm btn-outline-primary" disabled><i class="bx bx-lock"></i></button>';
+        } else if (member.id == currentUserId) {
+            // Current user cannot edit their own account
+            actionButtons = '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bx bx-info-circle" title="You cannot edit your own account"></i></button>';
+        } else if (currentUserRole === 'staff' && member.role === 'admin') {
+            // Staff cannot edit Admin accounts
+            actionButtons = '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bx bx-lock" title="Staff cannot edit Admin accounts"></i></button>';
+        } else {
+            actionButtons = `<button class="btn btn-sm btn-outline-primary" onclick="editStaff(${member.id})">
+                    <i class="bx bx-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteStaff(${member.id})">
+                    <i class="bx bx-trash"></i>
+                </button>`;
+        }
+        
+        // Display pages allowed based on role
+        let pagesAllowed;
+        if (member.role === 'superadmin') {
+            pagesAllowed = '<span class="badge bg-success"><i class="bx bx-shield-quarter me-1"></i>Full Access</span>';
+        } else if (member.role === 'admin') {
+            const count = member.page_access_count || 0;
+            pagesAllowed = count > 0 ? `<small>${count} pages</small>` : '<span class="badge bg-warning">Limited</span>';
+        } else {
+            const count = member.page_access_count || 0;
+            pagesAllowed = `<small>${count} pages</small>`;
+        }
+        
+        html += `<tr>
+            <td><strong>${member.username}</strong></td>
+            <td>${member.email}</td>
+            <td>${roleBadge}</td>
+            <td>${pagesAllowed}</td>
+            <td><span class="badge bg-${member.is_active ? 'success' : 'danger'}">${member.is_active ? 'Active' : 'Inactive'}</span></td>
+            <td><small class="text-muted">${member.last_login || 'Never'}</small></td>
+            <td>${actionButtons}</td>
+        </tr>`;
+    });
+    
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function openAddStaffModal() {
+    document.getElementById('addStaffForm').reset();
+    document.getElementById('staff-user-id').value = '';
+    document.getElementById('staff-role').value = 'staff'; // Default to staff
+    document.getElementById('addStaffModalTitle').textContent = 'Add Staff Account';
+    document.getElementById('password-hint').textContent = 'Min. 8 characters';
+    document.getElementById('staff-password').required = true;
+    
+    // Clear permissions
+    document.querySelectorAll('#addStaffForm input[type="checkbox"]').forEach(cb => cb.checked = false);
+    
+    const modal = new bootstrap.Modal(document.getElementById('addStaffModal'));
+    modal.show();
+}
+
+function editStaff(userId) {
+    fetch(`api/staff.php?action=get&id=${userId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const staff = data.data;
+                document.getElementById('staff-user-id').value = staff.id;
+                document.getElementById('staff-username').value = staff.username;
+                document.getElementById('staff-email').value = staff.email;
+                document.getElementById('staff-status').value = staff.is_active ? '1' : '0';
+                document.getElementById('staff-role').value = staff.role || 'staff';
+                document.getElementById('staff-password').value = ''; // Clear password field
+                document.getElementById('addStaffModalTitle').textContent = 'Edit Staff Account';
+                document.getElementById('password-hint').textContent = 'Leave blank to keep current password';
+                document.getElementById('staff-password').required = false;
+                
+                // Set permissions
+                document.querySelectorAll('#addStaffForm input[type="checkbox"]').forEach(cb => {
+                    cb.checked = staff.permissions && staff.permissions.includes(cb.value);
+                });
+                
+                const modal = new bootstrap.Modal(document.getElementById('addStaffModal'));
+                modal.show();
+            } else {
+                alert('Error loading staff data: ' + data.error);
+            }
+        });
+}
+
+function deleteStaff(userId) {
+    if (confirm('Are you sure you want to delete this staff account?')) {
+        fetch(`api/staff.php?action=delete&id=${userId}`, { method: 'DELETE' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadStaffList();
+                } else {
+                    alert('Error deleting staff: ' + data.error);
+                }
+            });
+    }
+}
+
+document.getElementById('addStaffForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = {};
+    formData.forEach((value, key) => {
+        if (key === 'permissions[]') {
+            if (!data.permissions) data.permissions = [];
+            data.permissions.push(value);
+        } else if (key === 'password' && value === '') {
+            // Skip empty passwords in edit mode
+            return;
+        } else {
+            data[key] = value;
+        }
+    });
+    
+    const userId = document.getElementById('staff-user-id').value;
+    const isEdit = userId !== '';
+    
+    // Don't include password field if it's empty in edit mode
+    if (isEdit && !data.password) {
+        delete data.password;
+    }
+    
+    // Debug: Check what we're sending
+    console.log('Staff update data:', data);
+    
+    // Get submit button and disable it with loader
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalBtnHTML = submitBtn.innerHTML;
+    
+    // Disable button and show loader
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...';
+    
+    fetch(`api/staff.php?action=${isEdit ? 'update' : 'create'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addStaffModal'));
+            modal.hide();
+            
+            // Show success message
+            if (typeof UIHelpers !== 'undefined') {
+                UIHelpers.showSuccess(result.message || 'Staff account created successfully!');
+            } else {
+                alert(result.message || 'Staff account created successfully!');
+            }
+            
+            loadStaffList();
+        } else {
+            if (typeof UIHelpers !== 'undefined') {
+                UIHelpers.showError('Error saving staff: ' + (result.error || 'Unknown error'));
+            } else {
+                alert('Error saving staff: ' + result.error);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        if (typeof UIHelpers !== 'undefined') {
+            UIHelpers.showError('Error creating staff account');
+        } else {
+            alert('Error creating staff account');
+        }
+    })
+    .finally(() => {
+        // Re-enable button and restore original text
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnHTML;
+        }
+    });
+});
+</script>
 
 <style>
 /* Responsive button text */

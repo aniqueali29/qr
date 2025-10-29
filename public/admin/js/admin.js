@@ -42,9 +42,9 @@
   };
 
   function mapYearNumericToLabel(n) {
-    if (n === 1) return '1st';
-    if (n === 2) return '2nd';
-    if (n === 3) return '3rd';
+    if (n === 1) return 'Semester 1';
+    if (n === 2) return 'Semester 2';
+    if (n === 3) return 'Semester 3';
     if (n >= 4) return 'Completed'; // For completed students
     return '';
   }
@@ -121,25 +121,36 @@
 
       // Program
       if (programSelect && data.program_code) {
+        let changed = false;
         for (let opt of programSelect.options) {
           if (opt.value === data.program_code) {
             opt.selected = true;
+            changed = true;
             programSelect.style.backgroundColor = '#e8f5e8';
             programSelect.style.borderColor = '#4caf50';
             break;
           }
         }
+        if (changed) {
+          // trigger change for dependent fields (sections)
+          try { programSelect.dispatchEvent(new Event('change')); } catch(e) {}
+        }
       }
 
       // Shift
       if (shiftSelect && data.shift) {
+        let changed = false;
         for (let opt of shiftSelect.options) {
           if (opt.value === data.shift) {
             opt.selected = true;
+            changed = true;
             shiftSelect.style.backgroundColor = '#e8f5e8';
             shiftSelect.style.borderColor = '#4caf50';
             break;
           }
+        }
+        if (changed) {
+          try { shiftSelect.dispatchEvent(new Event('change')); } catch(e) {}
         }
       }
 
@@ -161,12 +172,13 @@
         if (desired) {
           let found = false;
           for (let opt of yearLevelSelect.options) {
-            if (opt.value === desired) {
+          if (opt.value === desired) {
               opt.selected = true;
               yearLevelSelect.style.backgroundColor = '#e8f5e8';
               yearLevelSelect.style.borderColor = '#4caf50';
               console.log('Year level selected:', opt.value, opt.text);
               found = true;
+              try { yearLevelSelect.dispatchEvent(new Event('change')); } catch(e) {}
               break;
             }
           }
@@ -209,7 +221,8 @@
 
   function computeYearFromRoll(roll) {
     // Expect YY-...-NN or YY-E...-NN (allow 2-3 digit serial numbers)
-    const m = /^(\d{2})-E?[A-Za-z]{2,10}-(\d{2,3})$/.exec(roll.trim());
+    const norm = roll.trim().toUpperCase().replace(/[\u2012-\u2015]/g, '-');
+    const m = /^(\d{2})-[A-Za-z]{3,4}-(\d{2,6})$/.exec(norm);
     if (!m) return 0;
     
     const yy = parseInt(m[1], 10);
@@ -250,13 +263,13 @@
     const shiftSelect = document.getElementById('student-shift');
     const yearLevelSelect = document.getElementById('student-year');
     const admissionYearInput = document.getElementById('student-admission-year');
-    const m = /^(\d{2})-(E)?([A-Za-z]{2,10})-(\d{2,3})$/.exec(roll.trim());
+    const norm2 = roll.trim().toUpperCase().replace(/[\u2012-\u2015]/g, '-');
+    const m = /^(\d{2})-([A-Za-z]{3,4})-(\d{2,6})$/.exec(norm2);
     if (!m) return;
     const yy = parseInt(m[1], 10);
-    const isE = !!m[2];
-    const programCode = m[3].toUpperCase();
+    const programCode = m[2].toUpperCase();
     const admissionYear = 2000 + yy;
-    const shift = isE ? 'Evening' : 'Morning';
+    const shift = '';
 
     if (admissionYearInput) {
       admissionYearInput.value = admissionYear;
@@ -264,23 +277,33 @@
       admissionYearInput.style.borderColor = '#4caf50';
     }
     if (programSelect) {
+      let changed = false;
       for (let opt of programSelect.options) {
         if (opt.value === programCode) {
           opt.selected = true;
+          changed = true;
           programSelect.style.backgroundColor = '#e8f5e8';
           programSelect.style.borderColor = '#4caf50';
           break;
         }
       }
+      if (changed) {
+        try { programSelect.dispatchEvent(new Event('change')); } catch(e) {}
+      }
     }
     if (shiftSelect) {
+      let changed = false;
       for (let opt of shiftSelect.options) {
         if (opt.value === shift) {
           opt.selected = true;
+          changed = true;
           shiftSelect.style.backgroundColor = '#e8f5e8';
           shiftSelect.style.borderColor = '#4caf50';
           break;
         }
+      }
+      if (changed) {
+        try { shiftSelect.dispatchEvent(new Event('change')); } catch(e) {}
       }
     }
     if (yearLevelSelect) {
@@ -290,6 +313,7 @@
           opt.selected = true;
           yearLevelSelect.style.backgroundColor = '#e8f5e8';
           yearLevelSelect.style.borderColor = '#4caf50';
+          try { yearLevelSelect.dispatchEvent(new Event('change')); } catch(e) {}
           break;
         }
       }
@@ -306,7 +330,7 @@
       const val = this.value.trim();
       if (!val) return;
       // Basic pattern check before calling API:  YY-PROG-NN or YY-EPROG-NN
-      const pat = /^(\d{2})-E?[A-Za-z]{2,10}-(\d{2})$/;
+      const pat = /^(\d{2})-[A-Za-z]{3,4}-(\d{2,6})$/; // unicode dashes normalized elsewhere
       debounceId = setTimeout(() => {
         if (pat.test(val)) parseRollNumber(val);
       }, 400);

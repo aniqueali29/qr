@@ -33,7 +33,14 @@ try {
             
         case 'trends':
             $days = $_GET['days'] ?? 7;
+            $useSession = isset($_GET['session']) && $_GET['session'] === 'true';
+            
+            if ($useSession) {
+                $trends = getAttendanceTrendsForSession($pdo);
+            } else {
             $trends = getAttendanceTrends($pdo, $days);
+            }
+            
             echo json_encode(['success' => true, 'data' => $trends]);
             break;
             
@@ -65,6 +72,16 @@ try {
             echo json_encode(['success' => true, 'data' => $sections]);
             break;
             
+        case 'get_session_dates':
+            $sessionRange = getActiveSessionRange($pdo);
+            echo json_encode([
+                'success' => true, 
+                'start_date' => $sessionRange['start'], 
+                'end_date' => $sessionRange['end'],
+                'label' => $sessionRange['label']
+            ]);
+            break;
+            
         case 'generate_report':
             generateReport($pdo);
             break;
@@ -75,6 +92,36 @@ try {
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+}
+
+/**
+ * Get active session date range
+ */
+function getActiveSessionRange($pdo) {
+    // Get the most recent active session
+    $stmt = $pdo->query("
+        SELECT start_date, end_date 
+        FROM enrollment_sessions 
+        WHERE is_active = 1 
+        ORDER BY start_date DESC 
+        LIMIT 1
+    ");
+    $session = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($session && $session['start_date'] && $session['end_date']) {
+        return [
+            'start' => $session['start_date'],
+            'end' => $session['end_date'],
+            'label' => 'Current Session'
+        ];
+    }
+    
+    // Fallback: use last 12 months if no session found
+    return [
+        'start' => date('Y-m-d', strtotime('-12 months')),
+        'end' => date('Y-m-d'),
+        'label' => 'Last 12 Months'
+    ];
 }
 
 /**
@@ -94,25 +141,30 @@ function getQuickStats($pdo) {
     ");
     $presentToday = $stmt->fetchColumn();
     
-    // Average attendance (last 11 months) - percentage of students who have attended at least once
-    $stmt = $pdo->query("
+    // Get session date range
+    $sessionRange = getActiveSessionRange($pdo);
+    
+    // Average attendance for current session
+    $stmt = $pdo->prepare("
         SELECT ROUND(
             (COUNT(DISTINCT a.student_id) * 100.0 / 
             NULLIF((SELECT COUNT(*) FROM students WHERE is_active = 1), 0)), 2
         ) as avg_attendance
         FROM attendance a
-        WHERE a.timestamp >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
+        WHERE a.timestamp >= ? AND a.timestamp <= ?
     ");
+    $stmt->execute([$sessionRange['start'], $sessionRange['end']]);
     $avgAttendance = $stmt->fetchColumn() ?? 0;
     
-    // 11 months average attendance (same calculation)
+    // Session attendance (same calculation)
     $monthAttendance = $avgAttendance;
     
     return [
         'total_students' => (int)$totalStudents,
         'present_today' => (int)$presentToday,
         'avg_attendance' => (float)$avgAttendance,
-        'month_attendance' => (float)$monthAttendance
+        'month_attendance' => (float)$monthAttendance,
+        'session_label' => $sessionRange['label']
     ];
 }
 
@@ -120,31 +172,40 @@ function getQuickStats($pdo) {
  * Get program-wise statistics
  */
 function getProgramStats($pdo) {
+    // Get session date range
+    $sessionRange = getActiveSessionRange($pdo);
+    
     // Get program-wise attendance statistics
-    $stmt = $pdo->query("
+    // Calculate: (Average attendance percentage per student) 
+    $stmt = $pdo->prepare("
         SELECT 
             s.program,
             COUNT(DISTINCT s.id) as total_students,
-            COUNT(DISTINCT a.student_id) as students_with_attendance,
-            COUNT(a.id) as total_attendance_records,
-            COUNT(CASE WHEN a.status IN ('Present', 'Check-in') THEN 1 END) as present_records,
-            ROUND(
-                (COUNT(DISTINCT a.student_id) * 100.0 / 
-                NULLIF(COUNT(DISTINCT s.id), 0)), 2
-            ) as attendance_percentage
+            COALESCE(AVG(student_attendance.attendance_pct), 0) as attendance_percentage
         FROM students s
-        LEFT JOIN attendance a ON s.student_id = a.student_id 
-            AND a.timestamp >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
+        LEFT JOIN (
+            SELECT 
+                student_id,
+            ROUND(
+                    (COUNT(CASE WHEN status IN ('Present', 'Check-in') THEN 1 END) * 100.0 / 
+                    NULLIF(COUNT(*), 0)), 2
+                ) as attendance_pct
+            FROM attendance
+            WHERE timestamp >= ? AND timestamp <= ?
+            GROUP BY student_id
+        ) student_attendance ON s.id = student_attendance.student_id
         WHERE s.is_active = 1
         GROUP BY s.program
         ORDER BY s.program
     ");
     
+    $stmt->execute([$sessionRange['start'], $sessionRange['end']]);
     $stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Format percentages - percentage of students who have attended at least once
+    // Format percentages
     foreach ($stats as &$stat) {
-        $stat['attendance_percentage'] = $stat['attendance_percentage'] ?? 0;
+        $stat['attendance_percentage'] = (float)$stat['attendance_percentage'];
+        $stat['total_students'] = (int)$stat['total_students'];
     }
     
     return $stats;
@@ -154,31 +215,40 @@ function getProgramStats($pdo) {
  * Get shift-wise statistics
  */
 function getShiftStats($pdo) {
+    // Get session date range
+    $sessionRange = getActiveSessionRange($pdo);
+    
     // Get shift-wise attendance statistics
-    $stmt = $pdo->query("
+    // Calculate: (Average attendance percentage per student) 
+    $stmt = $pdo->prepare("
         SELECT 
             s.shift,
             COUNT(DISTINCT s.id) as total_students,
-            COUNT(DISTINCT a.student_id) as students_with_attendance,
-            COUNT(a.id) as total_attendance_records,
-            COUNT(CASE WHEN a.status IN ('Present', 'Check-in') THEN 1 END) as present_records,
-            ROUND(
-                (COUNT(DISTINCT a.student_id) * 100.0 / 
-                NULLIF(COUNT(DISTINCT s.id), 0)), 2
-            ) as attendance_percentage
+            COALESCE(AVG(student_attendance.attendance_pct), 0) as attendance_percentage
         FROM students s
-        LEFT JOIN attendance a ON s.student_id = a.student_id 
-            AND a.timestamp >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
+        LEFT JOIN (
+            SELECT 
+                student_id,
+            ROUND(
+                    (COUNT(CASE WHEN status IN ('Present', 'Check-in') THEN 1 END) * 100.0 / 
+                    NULLIF(COUNT(*), 0)), 2
+                ) as attendance_pct
+            FROM attendance
+            WHERE timestamp >= ? AND timestamp <= ?
+            GROUP BY student_id
+        ) student_attendance ON s.id = student_attendance.student_id
         WHERE s.is_active = 1
         GROUP BY s.shift
         ORDER BY s.shift
     ");
     
+    $stmt->execute([$sessionRange['start'], $sessionRange['end']]);
     $stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Format percentages - percentage of students who have attended at least once
+    // Format percentages
     foreach ($stats as &$stat) {
-        $stat['attendance_percentage'] = $stat['attendance_percentage'] ?? 0;
+        $stat['attendance_percentage'] = (float)$stat['attendance_percentage'];
+        $stat['total_students'] = (int)$stat['total_students'];
     }
     
     return $stats;
@@ -196,12 +266,12 @@ function getAttendanceTrends($pdo, $days = 7) {
     $stmt = $pdo->prepare("
         SELECT 
             DATE(timestamp) as date,
-            COUNT(CASE WHEN status IN ('Present', 'Check-in') THEN 1 END) as present,
-            COUNT(CASE WHEN status = 'Absent' THEN 1 END) as absent,
-            COUNT(*) as total,
+            COUNT(DISTINCT CASE WHEN status IN ('Present', 'Check-in') THEN student_id END) as present,
+            COUNT(DISTINCT CASE WHEN status = 'Absent' THEN student_id END) as absent,
+            (SELECT COUNT(*) FROM students WHERE is_active = 1) as total,
             ROUND(
-                (COUNT(CASE WHEN status IN ('Present', 'Check-in') THEN 1 END) * 100.0 / 
-                NULLIF(?, 0)), 2
+                (COUNT(DISTINCT CASE WHEN status IN ('Present', 'Check-in') THEN student_id END) * 100.0 / 
+                NULLIF((SELECT COUNT(*) FROM students WHERE is_active = 1), 0)), 2
             ) as percentage
         FROM attendance
         WHERE timestamp >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
@@ -209,7 +279,33 @@ function getAttendanceTrends($pdo, $days = 7) {
         ORDER BY DATE(timestamp) DESC
     ");
     
-    $stmt->execute([$totalStudents, $days - 1]);
+    $stmt->execute([$days - 1]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+/**
+ * Get attendance trends for current session
+ */
+function getAttendanceTrendsForSession($pdo) {
+    $sessionRange = getActiveSessionRange($pdo);
+    
+    $stmt = $pdo->prepare("
+        SELECT 
+            DATE(timestamp) as date,
+            COUNT(DISTINCT CASE WHEN status IN ('Present', 'Check-in') THEN student_id END) as present,
+            COUNT(DISTINCT CASE WHEN status = 'Absent' THEN student_id END) as absent,
+            (SELECT COUNT(*) FROM students WHERE is_active = 1) as total,
+            ROUND(
+                (COUNT(DISTINCT CASE WHEN status IN ('Present', 'Check-in') THEN student_id END) * 100.0 / 
+                NULLIF((SELECT COUNT(*) FROM students WHERE is_active = 1), 0)), 2
+            ) as percentage
+        FROM attendance
+        WHERE timestamp >= ? AND timestamp <= ?
+        GROUP BY DATE(timestamp)
+        ORDER BY DATE(timestamp) ASC
+    ");
+    
+    $stmt->execute([$sessionRange['start'], $sessionRange['end']]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 

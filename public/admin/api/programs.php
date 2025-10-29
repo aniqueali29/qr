@@ -103,13 +103,16 @@ function validateYearLevel($yearLevel) {
     if (empty($yearLevel)) {
         return ['valid' => false, 'error' => 'Year level is required'];
     }
-    
-    $validYearLevels = ['1st', '2nd', '3rd', '4th'];
-    if (!in_array($yearLevel, $validYearLevels)) {
-        return ['valid' => false, 'error' => 'Year level must be one of: ' . implode(', ', $validYearLevels)];
+    // Allow classic year labels or any custom label (e.g., semesters)
+    $validYearLevels = ['1st', '2nd', '3rd', '4th', 'Completed'];
+    if (in_array($yearLevel, $validYearLevels)) {
+        return ['valid' => true];
     }
-    
-    return ['valid' => true];
+    // Accept any non-empty string up to 50 chars (letters, numbers, spaces, hyphen)
+    if (is_string($yearLevel) && strlen($yearLevel) <= 50) {
+        return ['valid' => true];
+    }
+    return ['valid' => false, 'error' => 'Invalid year/semester label'];
 }
 
 /**
@@ -255,19 +258,8 @@ try {
                         ELSE NULL 
                     END) as section_count,
                     COUNT(DISTINCT CASE 
-                        WHEN st.is_active = 1 AND (
-                            -- Morning students: count under their assigned program
-                            (st.shift = 'Morning' AND st.program = p.code)
-                            OR 
-                            -- Evening students: count under evening program codes
-                            (st.shift = 'Evening' AND (
-                                (p.code = 'ESWT' AND st.program = 'SWT') OR
-                                (p.code = 'ECIT' AND st.program = 'CIT')
-                            ))
-                            OR
-                            -- Students assigned to sections of this program
-                            st.section_id IN (SELECT id FROM sections WHERE program_id = p.id)
-                        ) THEN st.id 
+                        WHEN st.program = p.code OR st.section_id IN (SELECT id FROM sections WHERE program_id = p.id)
+                        THEN st.id 
                         ELSE NULL 
                     END) as total_students
                 FROM programs p
@@ -278,14 +270,7 @@ try {
                         (p.code = 'ECIT' AND s.program_id IN (SELECT id FROM programs WHERE code = 'CIT'))
                     ))
                 )
-                LEFT JOIN students st ON (
-                    (st.shift = 'Morning' AND st.program = p.code) OR
-                    (st.shift = 'Evening' AND (
-                        (p.code = 'ESWT' AND st.program = 'SWT') OR
-                        (p.code = 'ECIT' AND st.program = 'CIT')
-                    )) OR
-                    st.section_id IN (SELECT id FROM sections WHERE program_id = p.id)
-                )
+                LEFT JOIN students st ON (st.is_active = 1)
                 $whereClause
                 GROUP BY p.id, p.code, p.name, p.description, p.is_active
             ";
@@ -515,6 +500,21 @@ try {
             $name = sanitizeInput($_POST['name'] ?? '');
             $description = sanitizeInput($_POST['description'] ?? '');
             
+            // Get enabled shifts (default to both if not specified)
+            $enabledShifts = $_POST['enabled_shifts'] ?? ['Morning', 'Evening'];
+            if (is_array($enabledShifts)) {
+                $shifts = array_filter($enabledShifts, function($shift) {
+                    return in_array($shift, ['Morning', 'Evening']);
+                });
+            } else {
+                $shifts = ['Morning', 'Evening']; // Default to both
+            }
+            
+            // Ensure at least one shift is enabled
+            if (empty($shifts)) {
+                $shifts = ['Morning', 'Evening']; // Default to both
+            }
+            
             // Validate program code
             $codeValidation = validateProgramCode($code);
             if (!$codeValidation['valid']) {
@@ -552,16 +552,55 @@ try {
                 break;
             }
             
+            $pdo->beginTransaction();
+            
+            try {
+                // Insert the program with enabled shifts
+                $enabledShiftsStr = implode(',', $shifts);
             $stmt = $pdo->prepare("
-                INSERT INTO programs (code, name, description, is_active, created_at)
-                VALUES (?, ?, ?, 1, NOW())
-            ");
-            $stmt->execute([$code, $name, $description]);
+                    INSERT INTO programs (code, name, description, enabled_shifts, is_active, created_at)
+                    VALUES (?, ?, ?, ?, 1, NOW())
+                ");
+                $stmt->execute([$code, $name, $description, $enabledShiftsStr]);
+                
+                // Get the newly created program ID
+                $programId = $pdo->lastInsertId();
+                
+                // Automatically create "Section A" for this program
+                // Create sections for each academic level (assuming semester-based)
+                $academicLevels = ['Semester 1', 'Semester 2', 'Semester 3', 'Semester 4', 'Semester 5', 'Semester 6', 'Semester 7', 'Semester 8'];
+                
+                foreach ($academicLevels as $yearLevel) {
+                    // Create sections only for enabled shifts
+                    foreach ($shifts as $shift) {
+                        try {
+                            $stmt = $pdo->prepare("
+                                INSERT INTO sections (program_id, section_name, year_level, shift, capacity, is_active, created_at)
+                                VALUES (?, ?, ?, ?, 100, 1, NOW())
+                            ");
+                            $stmt->execute([$programId, 'A', $yearLevel, $shift]);
+                        } catch (PDOException $e) {
+                            // Ignore duplicate errors (section may already exist for this program)
+                            if ($e->getCode() != 23000) {
+                                error_log("Section creation error for $shift - $yearLevel: " . $e->getMessage());
+                            }
+                        }
+                    }
+                }
+                
+                $pdo->commit();
             
             // Log the action
-            logAdminAction('PROGRAM_CREATED', "Created program: $code - $name");
-            
-            $response = ['success' => true, 'message' => 'Program added successfully'];
+                $shiftsInfo = implode(' and ', $shifts);
+                logAdminAction('PROGRAM_CREATED', "Created program: $code - $name with sections for $shiftsInfo shifts");
+                
+                $sectionsCreated = count($academicLevels) * count($shifts);
+                $response = ['success' => true, 'message' => "Program added successfully with automatic Section A for all semesters ($shiftsInfo shifts, {$sectionsCreated} sections)"];
+                
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $response = ['success' => false, 'message' => 'Failed to create program: ' . $e->getMessage()];
+            }
             break;
 
         case 'add-section':
@@ -666,19 +705,8 @@ try {
                         ELSE NULL 
                     END) as section_count,
                     COUNT(DISTINCT CASE 
-                        WHEN st.is_active = 1 AND (
-                            -- Morning students: count under their assigned program
-                            (st.shift = 'Morning' AND st.program = p.code)
-                            OR 
-                            -- Evening students: count under evening program codes
-                            (st.shift = 'Evening' AND (
-                                (p.code = 'ESWT' AND st.program = 'SWT') OR
-                                (p.code = 'ECIT' AND st.program = 'CIT')
-                            ))
-                            OR
-                            -- Students assigned to sections of this program
-                            st.section_id IN (SELECT id FROM sections WHERE program_id = p.id)
-                        ) THEN st.id 
+                        WHEN st.program = p.code OR st.section_id IN (SELECT id FROM sections WHERE program_id = p.id)
+                        THEN st.id 
                         ELSE NULL 
                     END) as total_students
                 FROM programs p
@@ -896,11 +924,28 @@ try {
                 $response = ['success' => false, 'message' => 'Program name already exists'];
                 break;
             }
+            
+            // Get enabled shifts
+            $enabledShifts = $_POST['enabled_shifts'] ?? ['Morning', 'Evening'];
+            if (is_array($enabledShifts)) {
+                $shifts = array_filter($enabledShifts, function($shift) {
+                    return in_array($shift, ['Morning', 'Evening']);
+                });
+            } else {
+                $shifts = ['Morning', 'Evening']; // Default to both
+            }
+            
+            // Ensure at least one shift is enabled
+            if (empty($shifts)) {
+                $shifts = ['Morning', 'Evening']; // Default to both
+            }
+            
+            $enabledShiftsStr = implode(',', $shifts);
 
             $stmt = $pdo->prepare("
-                UPDATE programs SET code = ?, name = ?, description = ?, is_active = ?, updated_at = NOW() WHERE id = ?
+                UPDATE programs SET code = ?, name = ?, description = ?, enabled_shifts = ?, is_active = ?, updated_at = NOW() WHERE id = ?
             ");
-            $stmt->execute([$code, $name, $description, $isActive, $id]);
+            $stmt->execute([$code, $name, $description, $enabledShiftsStr, $isActive, $id]);
             
             // Log the action
             logAdminAction('PROGRAM_UPDATED', "Updated program ID: $id - $code - $name");

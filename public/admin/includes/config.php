@@ -159,6 +159,19 @@ function validateCSRFToken($token) {
     return isset($_SESSION['admin_csrf_token']) && hash_equals($_SESSION['admin_csrf_token'], $token);
 }
 
+// Get session by code
+function get_session_by_code($code) {
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM enrollment_sessions WHERE code = ?");
+        $stmt->execute([$code]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Error getting session by code: " . $e->getMessage());
+        return null;
+    }
+}
+
 // Rate Limiting for login attempts
 function checkLoginRateLimit($ip) {
     $key = "login_attempts_$ip";

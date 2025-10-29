@@ -11,6 +11,9 @@ require_once 'includes/helpers.php';
 // Require admin authentication
 requireAdminAuth();
 
+// Check if module is enabled
+requireModuleEnabled('module_students');
+
 $pageTitle = "Student Management";
 $currentPage = "students";
 $pageCSS = ['css/responsive-buttons.css'];
@@ -172,14 +175,10 @@ include 'partials/navbar.php';
             <!-- Advanced Filter Panel -->
             <div id="filter-panel" class="card-body border-top" style="display: none;">
                 <div class="row g-3">
-                    <div class="col-md-3">
+                        <div class="col-md-3">
                         <label for="program-filter" class="form-label">Program</label>
                         <select id="program-filter" class="form-select">
                             <option value="">All Programs</option>
-                            <option value="SWT">SWT - Software Technology (Morning)</option>
-                            <option value="ESWT">ESWT - Software Technology (Evening)</option>
-                            <option value="CIT">CIT - Computer Information Technology (Morning)</option>
-                            <option value="ECIT">ECIT - Computer Information Technology (Evening)</option>
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -193,11 +192,36 @@ include 'partials/navbar.php';
                     <div class="col-md-3">
                         <label for="year-filter" class="form-label">Year Level</label>
                         <select id="year-filter" class="form-select">
-                            <option value="">All Years</option>
-                            <option value="1st">1st Year</option>
-                            <option value="2nd">2nd Year</option>
-                            <option value="3rd">3rd Year</option>
+                            <option value="">All Year Levels</option>
+                            <option value="Semester 1">Semester 1</option>
+                            <option value="Semester 2">Semester 2</option>
+                            <option value="Semester 3">Semester 3</option>
+                            <option value="Semester 4">Semester 4</option>
+                            <option value="Semester 5">Semester 5</option>
+                            <option value="Semester 6">Semester 6</option>
+                            <option value="Semester 7">Semester 7</option>
+                            <option value="Semester 8">Semester 8</option>
                             <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="semester-filter" class="form-label">Current Semester</label>
+                        <select id="semester-filter" class="form-select">
+                            <option value="">All Semesters</option>
+                            <option value="1">Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
+                            <option value="5">Semester 5</option>
+                            <option value="6">Semester 6</option>
+                            <option value="7">Semester 7</option>
+                            <option value="8">Semester 8</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="session-filter" class="form-label">Enrollment Session</label>
+                        <select id="session-filter" class="form-select">
+                            <option value="">All Sessions</option>
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -212,8 +236,10 @@ include 'partials/navbar.php';
                         <label for="status-filter" class="form-label">Status</label>
                         <select id="status-filter" class="form-select">
                             <option value="">All Status</option>
-                            <option value="1">Active</option>
-                            <option value="0">Inactive</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="assigned">With Session</option>
+                            <option value="unassigned">No Session</option>
                         </select>
                     </div>
                     <div class="col-md-9">
@@ -221,7 +247,7 @@ include 'partials/navbar.php';
                         <input type="text" id="search-input" class="form-control" placeholder="Search by name, ID, or email...">
                     </div>
                     <div class="col-12">
-                        <button class="btn btn-primary" onclick="applyFilters()">
+<button class="btn btn-primary" onclick="applyStudentFilters()">
                             <i class="bx bx-search me-1"></i>Apply Filters
                         </button>
                         <button class="btn btn-secondary" onclick="clearFilters()">
@@ -248,14 +274,16 @@ include 'partials/navbar.php';
                                 <th>Name</th>
                                 <th>Program</th>
                                 <th>Shift</th>
-                                <th>Year</th>
+                                <th>Year Level</th>
+                                <th>Current Semester</th>
+                                <th>Enrollment Session</th>
                                 <th>Section</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td colspan="8" class="text-center py-4">
+                                <td colspan="10" class="text-center py-4">
                                     <div class="spinner-border" role="status">
                                         <span class="visually-hidden">Loading...</span>
                                     </div>
@@ -310,6 +338,27 @@ include 'partials/navbar.php';
 </div>
 <!-- Content wrapper -->
 
+<script>
+// Populate session dropdown on load
+(function(){
+  document.addEventListener('DOMContentLoaded', async function(){
+    try {
+      const sel = document.getElementById('session-filter');
+      if (!sel) return;
+      const res = await fetch('api/sessions.php?action=list');
+      const data = await res.json();
+      if (!data.success) return;
+      (data.data || []).forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.code; // use code; API accepts code
+        opt.textContent = s.label;
+        sel.appendChild(opt);
+      });
+    } catch (e) { /* ignore */ }
+  });
+})();
+</script>
+
 <!-- Student Modal -->
 <div class="modal fade" id="studentModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -326,8 +375,8 @@ include 'partials/navbar.php';
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label for="student-roll" class="form-label">Roll Number *</label>
-                            <input type="text" id="student-roll" name="roll_number" class="form-control" placeholder="e.g., 24-SWT-01" required>
-                            <div class="form-text">Format: YY-PROGRAM-NN (Morning) or YY-EPROGRAM-NN (Evening) - e.g., 25-SWT-01, 25-SWT-583</div>
+                            <input type="text" id="student-roll" name="roll_number" class="form-control" placeholder="e.g., 24-SWT-0001 / 24-SWT-00001 / 24-CIVL-000001" required>
+                            <div class="form-text">Format: XX-XXX-XXXX, XX-XXX-XXXXX, or XX-XXXX-XXXXXX (e.g., 24-SWT-0001, 24-SWT-00001, 24-CIVL-000001)</div>
                             <div id="roll-number-status" class="mt-2" style="display: none;"></div>
                             <div id="duplicate-actions" class="mt-2" style="display: none;">
                                 <button type="button" class="btn btn-sm btn-outline-info" onclick="clearDuplicateWarning()">
@@ -340,8 +389,8 @@ include 'partials/navbar.php';
                             <input type="text" id="student-name" name="name" class="form-control" placeholder="e.g., John Doe" required>
                         </div>
                         <div class="col-md-6">
-                            <label for="student-email" class="form-label">Email Address *</label>
-                            <input type="email" id="student-email" name="email" class="form-control" placeholder="e.g., john.doe@college.edu" required>
+<label for="student-email" class="form-label">Email Address (optional)</label>
+<input type="email" id="student-email" name="email" class="form-control" placeholder="e.g., john.doe@college.edu">
                         </div>
                         <div class="col-md-6">
                             <label for="student-phone" class="form-label">Phone Number</label>
@@ -355,9 +404,7 @@ include 'partials/navbar.php';
                         <div class="col-md-6">
                             <label for="student-program" class="form-label">Program *</label>
                             <select id="student-program" name="program" class="form-select" required>
-                                <option value="">Select Program</option>
-                                <option value="SWT">Software Technology</option>
-                                <option value="CIT">Computer Information Technology</option>
+                                <option value=\"\">Select Program</option>
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -369,18 +416,16 @@ include 'partials/navbar.php';
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label for="student-year" class="form-label">Year Level *</label>
+                            <label for="student-year" class="form-label">Semester *</label>
                             <select id="student-year" name="year_level" class="form-select" required>
-                                <option value="">Select Year</option>
-                                <!-- Options will be populated dynamically based on max_program_years setting -->
+                                <option value="">Select Semester</option>
+                                <!-- Options will be populated dynamically based on semester settings -->
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label for="student-section" class="form-label">Section *</label>
                             <select id="student-section" name="section" class="form-select" required>
-                                <option value="">Select Section</option>
-                                <option value="A">Section A</option>
-                                <option value="B">Section B</option>
+                                <option value=\"\">Select Section</option>
                             </select>
                         </div>
                         <div class="col-12">
@@ -524,9 +569,9 @@ include 'partials/navbar.php';
                                 <div class="col-md-3">
                                     <div class="info-group">
                                         <div class="info-label">
-                                            <i class="bx bx-graduation"></i>Year Level
+                                            <i class="bx bx-graduation"></i>Semester
                                         </div>
-                                        <div class="info-value" id="info-year">3rd Year</div>
+                                        <div class="info-value" id="info-year">Semester</div>
                                     </div>
                                 </div>
                                 <div class="col-md-3">
@@ -835,11 +880,11 @@ include 'partials/navbar.php';
                                         </li>
                                         <li class="mb-2">
                                             <i class="bx bx-check text-success me-2"></i>
-                                            <strong>Required Fields:</strong> Student ID, Name, Email, Program, Shift, Year, Section
+<strong>Required Fields:</strong> Student ID, Name, Email, Program, Shift, Semester, Section
                                         </li>
                                         <li class="mb-2">
                                             <i class="bx bx-check text-success me-2"></i>
-                                            <strong>Student ID Format:</strong> YY-PROGRAM-NN (e.g., 25-SWT-01, 25-SWT-583)
+                                            <strong>Student ID Format:</strong> XX-XXX-XXXX, XX-XXX-XXXXX, or XX-XXXX-XXXXXX (e.g., 24-SWT-0001, 24-SWT-00001, 24-CIVL-000001)
                                         </li>
                                         <li class="mb-0">
                                             <i class="bx bx-check text-success me-2"></i>
@@ -928,7 +973,7 @@ include 'partials/navbar.php';
                                                             <th>Email</th>
                                                             <th>Program</th>
                                                             <th>Shift</th>
-                                                            <th>Year</th>
+                                                            <th>Semester</th>
                                                             <th>Section</th>
                                                         </tr>
                                                     </thead>
@@ -1128,12 +1173,7 @@ include 'partials/navbar.php';
 <!-- Page JS -->
 <script src="<?php echo getAdminAssetUrl('js/admin.js?v=' . time()); ?>"></script>
 
-<!-- Debug Script -->
 <script>
-console.log('Script loading order:');
-console.log('jQuery available:', typeof $ !== 'undefined');
-console.log('Bootstrap available:', typeof bootstrap !== 'undefined');
-console.log('adminUtils available:', typeof window.adminUtils !== 'undefined');
 
 // Global error handler
 window.addEventListener('error', function(e) {
@@ -1400,6 +1440,105 @@ window.addEventListener('unhandledrejection', function(e) {
 <script>
 // Students page specific JavaScript
 
+// Load programs for student modal and filters dynamically from DB
+function loadProgramOptionsDynamic() {
+    fetch('api/programs.php?action=programs')
+        .then(r => r.json())
+        .then(res => {
+            if (!res.success) return;
+            const programs = Array.isArray(res.data) ? res.data : [];
+            // Build cache and sort by name
+            PROGRAMS_BY_CODE = {};
+            programs.sort((a,b) => a.name.localeCompare(b.name));
+            programs.forEach(p => { PROGRAMS_BY_CODE[p.code] = { id: p.id, code: p.code, name: p.name }; });
+
+            // Populate student modal program select
+            const studentProg = document.getElementById('student-program');
+            if (studentProg) {
+                studentProg.innerHTML = '<option value="">Select Program</option>';
+                programs.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.code; // store base code as value
+                    opt.textContent = `${p.code} - ${p.name}`;
+                    opt.dataset.programId = p.id; // keep id for sections API
+                    studentProg.appendChild(opt);
+                });
+            }
+
+            // Populate filter program select (base codes only)
+            const filterProg = document.getElementById('program-filter');
+            if (filterProg) {
+                filterProg.innerHTML = '<option value="">All Programs</option>';
+                programs.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.code; // base code for filtering
+                    opt.textContent = `${p.code} - ${p.name}`;
+                    filterProg.appendChild(opt);
+                });
+            }
+        })
+        .catch(err => console.error('Error loading programs:', err));
+}
+
+// Refresh sections list in student modal based on selected program, year and shift
+function refreshStudentSections() {
+    const progSelect = document.getElementById('student-program');
+    const yearSelect = document.getElementById('student-year');
+    const shiftSelect = document.getElementById('student-shift');
+    const sectionSelect = document.getElementById('student-section');
+    if (!progSelect || !yearSelect || !shiftSelect || !sectionSelect) return;
+
+    const code = progSelect.value;
+    const programMeta = PROGRAMS_BY_CODE[code];
+    const year = yearSelect.value;
+    const shift = shiftSelect.value;
+
+    // Clear
+    sectionSelect.innerHTML = '<option value="">Select Section</option>';
+    if (!programMeta || !programMeta.id) return;
+
+    const params = new URLSearchParams({ action: 'sections', program_id: String(programMeta.id) });
+    if (year) params.set('year', year);
+    if (shift) params.set('shift', shift);
+
+    fetch(`api/programs.php?${params}`)
+        .then(r => r.json())
+        .then(async res => {
+            if (!res.success) return;
+            let sections = Array.isArray(res.data) ? res.data : [];
+
+            // Fallback 1: If no sections and using semester labels, map to numeric years (1st/2nd/3rd/4th)
+            if (sections.length === 0 && /^Semester\s*\d+$/i.test(year)) {
+                const n = parseInt(year.replace(/[^0-9]/g, ''), 10);
+                const ord = n===1?'1st':n===2?'2nd':n===3?'3rd':n+'th';
+                const p2 = new URLSearchParams({ action:'sections', program_id:String(programMeta.id), year: ord, shift });
+                try {
+                    const r2 = await fetch(`api/programs.php?${p2}`).then(x=>x.json());
+                    if (r2 && r2.success && Array.isArray(r2.data)) sections = r2.data;
+                } catch(e) { console.warn('Fallback year mapping failed', e); }
+            }
+
+            // Fallback 2: If still empty, load all sections for program (no shift/year filters)
+            if (sections.length === 0) {
+                const p3 = new URLSearchParams({ action:'sections', program_id:String(programMeta.id) });
+                try {
+                    const r3 = await fetch(`api/programs.php?${p3}`).then(x=>x.json());
+                    if (r3 && r3.success && Array.isArray(r3.data)) sections = r3.data;
+                } catch(e) { console.warn('Fallback no-filter failed', e); }
+            }
+
+            // Render
+            sections.sort((a,b) => a.section_name.localeCompare(b.section_name));
+            sections.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.section_name; // API expects plain section name on create/update
+                opt.textContent = s.section_name;
+                sectionSelect.appendChild(opt);
+            });
+        })
+        .catch(err => console.error('Error loading sections:', err));
+}
+
 // Professional Toast Alert System
 if (typeof window.adminUtils === 'undefined') {
     window.adminUtils = {
@@ -1488,12 +1627,112 @@ let editingStudentId = null; // Track if we're editing a student
 /**
  * Load max program years from settings and populate year dropdowns
  */
+function loadAcademicOptions() {
+    // Fetch academic structure and populate year/semester dropdowns
+    Promise.all([
+        fetch('api/settings.php?action=get&key=academic_structure_mode').then(r=>r.json()).catch(()=>({success:false})),
+        fetch('api/settings.php?action=get&key=semesters_per_year').then(r=>r.json()).catch(()=>({success:false})),
+        fetch('api/settings.php?action=get&key=semester_names').then(r=>r.json()).catch(()=>({success:false})),
+        fetch('api/settings.php?action=get&key=max_program_years').then(r=>r.json()).catch(()=>({success:false,value:4}))
+    ]).then(([modeRes, countRes, namesRes, maxYearsRes]) => {
+        const mode = (modeRes.success ? String(modeRes.value) : 'year').toLowerCase();
+        const semCount = parseInt(countRes && countRes.value ? countRes.value : 2, 10) || 2;
+        let semNames = [];
+        try {
+            if (namesRes && namesRes.success) {
+                if (Array.isArray(namesRes.value)) semNames = namesRes.value;
+                else if (typeof namesRes.value === 'string') {
+                    const parsed = JSON.parse(namesRes.value);
+                    if (Array.isArray(parsed)) semNames = parsed; else semNames = [];
+                }
+            }
+        } catch (e) { semNames = []; }
+        if (semNames.length === 0) {
+            semNames = Array.from({length: semCount}, (_,i)=>`Semester ${i+1}`);
+        }
+        const maxYears = parseInt(maxYearsRes && maxYearsRes.value ? maxYearsRes.value : 4, 10) || 4;
+
+        const yearSelect = document.getElementById('student-year');
+        const yearFilter = document.getElementById('year-filter');
+        const clearOptions = (sel, keepFirst=false) => {
+            if (!sel) return;
+            while (sel.options.length > (keepFirst?1:0)) sel.remove(keepFirst?1:0);
+        };
+        if (mode === 'semester') {
+            // Update labels for semester mode
+            const studentYearLabel = document.querySelector('label[for="student-year"]');
+            if (studentYearLabel) studentYearLabel.textContent = 'Semester *';
+            const yearHeader = document.getElementById('year-column-header');
+            if (yearHeader) yearHeader.textContent = 'Semester';
+            const filterYearLabel = document.querySelector('label[for="year-filter"]');
+            if (filterYearLabel) filterYearLabel.textContent = 'Semester';
+            if (yearSelect) {
+                // Ensure first option says Select Semester
+                if (yearSelect.options.length > 0) yearSelect.options[0].text = 'Select Semester';
+                clearOptions(yearSelect, true);
+                semNames.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    yearSelect.appendChild(opt);
+                });
+            }
+            if (yearFilter) {
+                // Ensure first option says All Semesters
+                if (yearFilter.options.length > 0) yearFilter.options[0].text = 'All Semesters';
+                clearOptions(yearFilter, true);
+                semNames.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    yearFilter.appendChild(opt);
+                });
+            }
+        } else {
+            // Update labels for year mode
+            const studentYearLabel = document.querySelector('label[for="student-year"]');
+            if (studentYearLabel) studentYearLabel.textContent = 'Year Level *';
+            const yearHeader = document.getElementById('year-column-header');
+            if (yearHeader) yearHeader.textContent = 'Year';
+            const filterYearLabel = document.querySelector('label[for="year-filter"]');
+            if (filterYearLabel) filterYearLabel.textContent = 'Year';
+            // Year-wise
+            const labels = ['1st','2nd','3rd','4th','5th','6th'];
+            if (yearSelect) {
+                clearOptions(yearSelect, true);
+                for (let i=1;i<=maxYears;i++) {
+                    const opt=document.createElement('option');
+                    opt.value = labels[i-1] || `${i}th`;
+                    opt.textContent = `${labels[i-1] || i+'th'} Year`;
+                    yearSelect.appendChild(opt);
+                }
+                const completed = document.createElement('option');
+                completed.value = 'Completed';
+                completed.textContent = 'Completed';
+                yearSelect.appendChild(completed);
+            }
+            if (yearFilter) {
+                clearOptions(yearFilter, true);
+                for (let i=1;i<=maxYears;i++) {
+                    const opt=document.createElement('option');
+                    opt.value = labels[i-1] || `${i}th`;
+                    opt.textContent = `${labels[i-1] || i+'th'} Year`;
+                    yearFilter.appendChild(opt);
+                }
+                const completed = document.createElement('option');
+                completed.value = 'Completed';
+                completed.textContent = 'Completed';
+                yearFilter.appendChild(completed);
+            }
+        }
+    }).catch(err => console.error('Error loading academic options:', err));
+}
+
 function loadMaxProgramYears() {
     fetch('api/settings.php?action=get&key=max_program_years')
         .then(response => response.json())
         .then(data => {
             const maxYears = data.success && data.value ? parseInt(data.value) : 4;
-            console.log('Max program years:', maxYears);
             
             // Populate year level dropdown in student form
             const yearSelect = document.getElementById('student-year');
@@ -1549,12 +1788,11 @@ function loadMaxProgramYears() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM Content Loaded - Students Page');
-    console.log('adminUtils available:', typeof window.adminUtils !== 'undefined');
     
     try {
         loadStudents();
-        loadMaxProgramYears(); // Load and populate year dropdown
+        loadAcademicOptions(); // Load and populate year/semester dropdown
+        loadProgramOptionsDynamic(); // Populate programs dynamically
         
         // Setup form handlers
         setupFormHandlers();
@@ -1581,9 +1819,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Cache for programs by code -> { id, code, name }
+let PROGRAMS_BY_CODE = {};
+
 function setupFormHandlers() {
     // Student form submission
-    document.getElementById('studentForm').addEventListener('submit', function(e) {
+    const studentFormEl = document.getElementById('studentForm');
+    if (studentFormEl) studentFormEl.addEventListener('submit', function(e) {
         e.preventDefault();
         
         // Validate form before submission
@@ -1593,25 +1835,28 @@ function setupFormHandlers() {
     });
     
     // Name validation
-    document.getElementById('student-name').addEventListener('input', function() {
+    const nameEl = document.getElementById('student-name');
+    if (nameEl) nameEl.addEventListener('input', function() {
         validateName(this.value, this);
     });
     
-    document.getElementById('student-name').addEventListener('blur', function() {
+    if (nameEl) nameEl.addEventListener('blur', function() {
         validateName(this.value, this);
     });
     
     // Phone validation
-    document.getElementById('student-phone').addEventListener('input', function() {
+    const phoneEl = document.getElementById('student-phone');
+    if (phoneEl) phoneEl.addEventListener('input', function() {
         validatePhone(this.value, this);
     });
     
-    document.getElementById('student-phone').addEventListener('blur', function() {
+    if (phoneEl) phoneEl.addEventListener('blur', function() {
         validatePhone(this.value, this);
     });
     
     // Email validation with duplicate check
-    document.getElementById('student-email').addEventListener('blur', function() {
+    const emailEl = document.getElementById('student-email');
+    if (emailEl) emailEl.addEventListener('blur', function() {
         const email = this.value.trim();
         if (email && !isEditingStudent()) {
             checkEmailDuplicate(email);
@@ -1619,7 +1864,8 @@ function setupFormHandlers() {
     });
     
     // Roll number validation and auto-fill
-    document.getElementById('student-roll').addEventListener('input', function() {
+    const rollEl = document.getElementById('student-roll');
+    if (rollEl) rollEl.addEventListener('input', function() {
         validateRollNumber(this.value);
         // Check for duplicates with debouncing - only for new students
         clearTimeout(window.duplicateCheckTimeout);
@@ -1631,7 +1877,7 @@ function setupFormHandlers() {
     });
     
     // Roll number auto-fill on blur
-    document.getElementById('student-roll').addEventListener('blur', function() {
+    if (rollEl) rollEl.addEventListener('blur', function() {
         const rollNumber = this.value.trim();
         if (rollNumber) {
             parseRollNumber(rollNumber);
@@ -1643,7 +1889,7 @@ function setupFormHandlers() {
     });
     
     // Roll number auto-fill on Enter key
-    document.getElementById('student-roll').addEventListener('keypress', function(e) {
+    if (rollEl) rollEl.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             const rollNumber = this.value.trim();
             if (rollNumber) {
@@ -1657,14 +1903,24 @@ function setupFormHandlers() {
     });
     
     // Delete confirmation
-    document.getElementById('confirmDelete').addEventListener('click', function() {
+    const confirmDelEl = document.getElementById('confirmDelete');
+    if (confirmDelEl) confirmDelEl.addEventListener('click', function() {
         if (deleteStudentId) {
             deleteStudent(deleteStudentId);
         }
     });
     
+    // Dynamic sections refresh when key fields change
+    const programSelect = document.getElementById('student-program');
+    const shiftSelect = document.getElementById('student-shift');
+    const yearSelect = document.getElementById('student-year');
+    [programSelect, shiftSelect, yearSelect].forEach(el => {
+        if (el) el.addEventListener('change', refreshStudentSections);
+    });
+    
     // Clear editing flag when modal is closed
-    document.getElementById('studentModal').addEventListener('hidden.bs.modal', function() {
+    const studentModalEl = document.getElementById('studentModal');
+    if (studentModalEl) studentModalEl.addEventListener('hidden.bs.modal', function() {
         editingStudentId = null;
         clearRollNumberStatus();
         clearFieldValidation();
@@ -1875,7 +2131,6 @@ function validateStudentForm() {
     const requiredFields = [
         { id: 'student-roll', label: 'Roll Number' },
         { id: 'student-name', label: 'Name' },
-        { id: 'student-email', label: 'Email' },
         { id: 'student-program', label: 'Program' },
         { id: 'student-shift', label: 'Shift' },
         { id: 'student-year', label: 'Year Level' },
@@ -1975,6 +2230,37 @@ function loadStudents(page = 1) {
     console.log('loadStudents called with page:', page);
     currentStudentsPage = page;
     
+    // Collect current filter values from DOM (only non-empty values)
+    const filters = {};
+    
+    const programVal = document.getElementById('program-filter')?.value;
+    if (programVal) filters.program = programVal;
+    
+    const shiftVal = document.getElementById('shift-filter')?.value;
+    if (shiftVal) filters.shift = shiftVal;
+    
+    const yearVal = document.getElementById('year-filter')?.value;
+    if (yearVal) filters.year = yearVal;
+    
+    const semesterVal = document.getElementById('semester-filter')?.value;
+    if (semesterVal) filters.current_semester = semesterVal;
+    
+    const sessionVal = document.getElementById('session-filter')?.value;
+    if (sessionVal) filters.session = sessionVal;
+    
+    const sectionVal = document.getElementById('section-filter')?.value;
+    if (sectionVal) filters.section = sectionVal;
+    
+    const statusVal = document.getElementById('status-filter')?.value;
+    if (statusVal) filters.status = statusVal;
+    
+    const searchVal = document.getElementById('search-input')?.value.trim();
+    if (searchVal) filters.search = searchVal;
+    
+    currentFilters = filters;
+    
+    console.log('Current filters:', currentFilters);
+    
     const params = new URLSearchParams({
         page: page,
         limit: 20,
@@ -2064,6 +2350,18 @@ function updateStudentsTable(students) {
             <td><span class="badge bg-primary">${escapeHtml(student.shift === 'Evening' ? 'E' + student.program : student.program)}</span></td>
             <td><span class="badge bg-${student.shift === 'Morning' ? 'success' : 'info'}">${escapeHtml(student.shift)}</span></td>
             <td>${escapeHtml(student.year_level)}</td>
+            <td>
+                ${student.current_semester ? 
+                    `<span class="badge bg-warning">Semester ${student.current_semester}</span>` : 
+                    '<span class="text-muted">Not Set</span>'
+                }
+            </td>
+            <td>
+                ${student.session_label ? 
+                    `<span class="badge bg-info">${escapeHtml(student.session_label)}</span>` : 
+                    '<span class="text-muted">Unassigned</span>'
+                }
+            </td>
             <td>Section ${escapeHtml(student.section)}</td>
             <td>
                 <div class="dropdown">
@@ -2408,15 +2706,7 @@ function toggleFilterPanel() {
 }
 
 function applyFilters() {
-    currentFilters = {
-        program: document.getElementById('program-filter').value,
-        shift: document.getElementById('shift-filter').value,
-        year: document.getElementById('year-filter').value,
-        section: document.getElementById('section-filter').value,
-        status: document.getElementById('status-filter').value,
-        search: document.getElementById('search-input').value
-    };
-    
+    // Filters are now collected in loadStudents, just reload
     loadStudents(1);
 }
 
@@ -2424,6 +2714,8 @@ function clearFilters() {
     document.getElementById('program-filter').value = '';
     document.getElementById('shift-filter').value = '';
     document.getElementById('year-filter').value = '';
+    document.getElementById('semester-filter').value = '';
+    document.getElementById('session-filter').value = '';
     document.getElementById('section-filter').value = '';
     document.getElementById('status-filter').value = '';
     document.getElementById('search-input').value = '';
@@ -2435,8 +2727,8 @@ function clearFilters() {
 function validateRollNumber(rollNumber) {
     if (rollNumber.length < 5) return;
     
-    // Basic roll number validation
-    const pattern = /^\d{2}-[A-Z]{2,3}-\d{2}$/;
+        // Basic roll number validation (2–6 digit serial)
+        const pattern = /^(\d{2})-[A-Za-z]{3,4}-(\d{2,6})$/;
     const statusDiv = document.getElementById('roll-number-status');
     
     if (!statusDiv) {
@@ -2562,8 +2854,16 @@ async function parseRollNumber(rollNumber) {
     try {
         console.log('Parsing roll number:', rollNumber);
         
-        const response = await fetch(`api/roll_parser_service.php?action=parse_roll&roll_number=${encodeURIComponent(rollNumber)}`);
-        const result = await response.json();
+        const response = await fetch(`api/roll_parser_simple.php?action=parse_roll&roll_number=${encodeURIComponent(rollNumber)}`);
+        const text = await response.text();
+        let result;
+        try { result = JSON.parse(text); } catch(e) {
+            console.error('Parser raw response:', text);
+            // Fallback to client-side parse
+            fallbackFillFromRoll(rollNumber);
+            showRollNumberStatus('warning', 'Parsed locally (server returned non-JSON)');
+            return; // stop further server-based handling
+        }
         
         if (result.success) {
             const data = result.data;
@@ -2584,11 +2884,12 @@ async function parseRollNumber(rollNumber) {
                 console.log('Admission year filled:', data.admission_year);
             }
             
-            // Fill program using base program code
+            // Fill program using program_code (fallback to base_program_code)
             if (programSelect) {
-                console.log('Looking for program:', data.base_program_code);
+                const progCode = (data.program_code || data.base_program_code || '').toUpperCase();
+                console.log('Looking for program:', progCode);
                 for (let option of programSelect.options) {
-                    if (option.value === data.base_program_code) {
+                    if (option.value.toUpperCase() === progCode) {
                         option.selected = true;
                         programSelect.style.backgroundColor = '#e8f5e8';
                         programSelect.style.borderColor = '#4caf50';
@@ -2651,7 +2952,8 @@ async function parseRollNumber(rollNumber) {
             // Show success message
             const sectionInfo = data.available_sections && data.available_sections.length > 0 ? 
                 ` - Section ${data.available_sections[0].section_name}` : '';
-            showRollNumberStatus('success', `Auto-filled: ${data.program_name} - ${data.shift} - ${data.year_level}${sectionInfo}`);
+            const shiftText = data.shift ? ` - ${data.shift}` : '';
+            showRollNumberStatus('success', `Auto-filled: ${data.program_name}${shiftText} - ${data.year_level}${sectionInfo}`);
             
             // Store parsed data for form submission
             window.parsedRollData = data;
@@ -2672,6 +2974,32 @@ async function parseRollNumber(rollNumber) {
 }
 
 // Note: showRollNumberStatus() function moved earlier to avoid undefined errors
+
+// Lightweight client-side fallback parser
+function fallbackFillFromRoll(roll) {
+    try {
+        const m = /^(\d{2})-([A-Za-z]{3,4})-(\d{2,6})$/.exec((roll||'').trim().toUpperCase().replace(/[\u2012-\u2015]/g,'-'));
+        if (!m) return;
+        const yy = parseInt(m[1],10);
+        const code = m[2];
+        const admissionYear = 2000 + yy;
+        const programSelect = document.getElementById('student-program');
+        const yearInput = document.getElementById('student-admission-year');
+        if (yearInput) {
+            yearInput.value = admissionYear;
+            yearInput.style.backgroundColor = '#e8f5e8';
+            yearInput.style.borderColor = '#4caf50';
+        }
+        if (programSelect) {
+            for (let opt of programSelect.options) {
+                if (opt.value === code) { opt.selected = true; break; }
+            }
+            try { programSelect.dispatchEvent(new Event('change')); } catch(e) {}
+        }
+    } catch (e) {
+        console.warn('Fallback parse failed:', e);
+    }
+}
 
 /**
  * Check for duplicate roll number

@@ -194,7 +194,6 @@ if ($adminAuth->isLoggedIn()) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Show success message
                 showAlert('Login successful! Redirecting...', 'success');
                 setTimeout(() => {
                     window.location.href = 'index.php';
@@ -207,7 +206,6 @@ if ($adminAuth->isLoggedIn()) {
             showAlert('Login error: ' + error.message, 'error');
         })
         .finally(() => {
-            // Reset button state
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalText;
         });

@@ -113,7 +113,31 @@ function setupEventListeners() {
     // Search and filters
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
-        searchInput.addEventListener('input', debounce(handleSearch, 300));
+        if (document.getElementById('students-table')) {
+            // Students page live search
+            searchInput.addEventListener('input', debounce(handleSearch, 300));
+        } else if (document.getElementById('attendance-table')) {
+            // Attendance page live search: update currentFilters.search then reload
+            searchInput.addEventListener('input', debounce(() => {
+                try {
+                    window.currentFilters = window.currentFilters || {};
+                    const term = (searchInput.value || '').trim();
+                    window.currentFilters.search = term;
+                    // If searching, broaden scope by clearing date filters (show all dates)
+                    if (term.length > 0) {
+                        const df = document.getElementById('date-from');
+                        const dt = document.getElementById('date-to');
+                        if (df) df.value = '';
+                        if (dt) dt.value = '';
+                        window.currentFilters.date_from = '';
+                        window.currentFilters.date_to = '';
+                    }
+                } catch (e) { /* ignore */ }
+                if (typeof loadAttendance === 'function') {
+                    loadAttendance(1);
+                }
+            }, 300));
+        }
     }
     
     // Filter toggles
@@ -516,14 +540,9 @@ async function loadStudents(page = 1) {
         
         console.log('Loading students with params:', params.toString());
         
-        // Try the basic students endpoint first if filtered fails
-        let response;
-        try {
-            response = await fetch(`api/admin_api.php?action=get_filtered_students&${params}`);
-        } catch (filterError) {
-            console.log('Filtered students failed, trying basic students endpoint');
-            response = await fetch(`api/admin_api.php?action=students`);
-        }
+        // Use Students API with rich filters (semester/session)
+        const url = `admin/api/students.php?action=list&${params}`;
+        let response = await fetch(url);
         
         console.log('Students API response:', response);
         
@@ -535,14 +554,19 @@ async function loadStudents(page = 1) {
         console.log('Students data:', data);
         
         if (data.success) {
-            students = data.data;
-            currentPage = data.pagination.current_page;
-            totalPages = data.pagination.total_pages;
+            students = data.data || [];
+            // Support both legacy {page, total, limit} and {pagination: {current_page, total_pages}}
+            const pagination = data.pagination || {
+                current_page: (data.page !== undefined ? data.page : 1),
+                total_pages: Math.max(1, Math.ceil(((data.total !== undefined ? data.total : students.length) / (data.limit !== undefined ? data.limit : itemsPerPage))))
+            };
+            currentPage = Number(pagination.current_page) || 1;
+            totalPages = Number(pagination.total_pages) || 1;
             updateStudentsTable();
-            updatePagination();
+            updateStudentsPagination();
         } else {
             console.error('Students API error:', data.error);
-            showAlert('Error loading students: ' + data.error, 'error');
+            showAlert('Error loading students: ' + (data.error || 'Unknown error'), 'error');
             // Show empty table instead of loading state
             updateStudentsTable();
         }
@@ -1010,11 +1034,23 @@ function getActiveFilters() {
         filters.shift = shiftFilter.value;
     }
     
+    // Year filter: support both checkbox group and select#year-filter
     const yearFilter = document.querySelectorAll('input[name="year-filter"]:checked');
     if (yearFilter.length > 0) {
         filters.year_level = Array.from(yearFilter).map(cb => cb.value).join(',');
+    } else {
+        const yearSelect = document.getElementById('year-filter');
+        if (yearSelect && yearSelect.value) {
+            filters.year_level = yearSelect.value;
+        }
     }
-    
+
+    // Session/batch filter (by code)
+    const sessionFilter = document.getElementById('session-filter');
+    if (sessionFilter && sessionFilter.value) {
+        filters.session = sessionFilter.value; // e.g. F2024, SP2025
+    }
+
     const sectionFilter = document.getElementById('section-filter');
     if (sectionFilter && sectionFilter.value) {
         filters.section = sectionFilter.value;
@@ -1066,6 +1102,8 @@ function getSectionFilters() {
  * Handle search
  */
 function handleSearch() {
+    // Guard: only run when students table exists
+    if (!document.getElementById('students-table')) return;
     loadStudents(1);
 }
 
@@ -1091,7 +1129,7 @@ function changePage(page) {
 /**
  * Update pagination
  */
-function updatePagination() {
+function updateStudentsPagination() {
     const pagination = document.getElementById('pagination');
     if (!pagination) return;
     
@@ -1823,9 +1861,11 @@ async function saveSettings() {
 }
 
 /**
- * Apply filters
+ * Apply filters (Students page)
  */
-function applyFilters() {
+function applyStudentFilters() {
+    // Guard: only run when students table exists
+    if (!document.getElementById('students-table')) return;
     loadStudents(1);
 }
 
@@ -2169,4 +2209,9 @@ window.exportAttendance = exportAttendance;
 window.exportData = exportData;
 window.runYearProgression = runYearProgression;
 window.saveSettings = saveSettings;
-window.applyFilters = applyFilters;
+// Export students filter function without clobbering attendance page's applyFilters
+window.applyStudentFilters = applyStudentFilters;
+// Backward compatibility: only alias applyFilters on pages with students table
+if (document.getElementById('students-table')) {
+    window.applyFilters = applyStudentFilters;
+}

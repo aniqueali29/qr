@@ -15,11 +15,11 @@ $pageJS = $pageJS ?? [];
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
     
-    <title><?php echo sanitizeOutput($pageTitle); ?> - QR Attendance Admin</title>
-    <meta name="description" content="QR Code Attendance System - Admin Dashboard" />
+    <title><?php echo sanitizeOutput($pageTitle); ?> - <?php echo function_exists('getProjectShortName') ? getProjectShortName() : 'QR Attendance'; ?></title>
+    <meta name="description" content="<?php echo function_exists('getProjectName') ? getProjectName() : 'QR Code Attendance System'; ?> - Admin Dashboard" />
     
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="<?php echo getAdminAssetUrl('img/favicon/favicon.ico'); ?>" />
+    <link rel="icon" href="<?php echo getAdminFaviconUrl(); ?>" />
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

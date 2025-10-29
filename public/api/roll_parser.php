@@ -5,6 +5,8 @@
  * Extracts: admission year (YY), shift (E=Evening, none=Morning), program code, sequence number
  */
 
+require_once __DIR__ . '/../includes/academic.php';
+
 class RollParser {
     
     /**
@@ -23,25 +25,25 @@ class RollParser {
         
         // Clean the roll number
         $roll_number = strtoupper(trim($roll_number));
+        // Normalize unicode dashes to '-'
+        $roll_number = preg_replace('/[\x{2012}-\x{2015}]/u', '-', $roll_number);
         
-        // Pattern: YY-[E]PROGRAM-NN
-        // YY: 2-digit year (20-99)
-        // E: Optional 'E' for Evening shift
-        // PROGRAM: 2-4 character program code
-        // NN: 2-3 digit sequence number
-        $pattern = '/^(\d{2})-([E]?)([A-Z]{2,4})-(\d{2,3})$/';
+        // Pattern: XX-XXX-XX..XXXXXX (2–6 digit serial)
+        // XX: 2-digit year
+        // PROGRAM: 3-4 character program code
+        // Serial: 2 to 6 digits
+        $pattern = '/^(\d{2})-([A-Za-z]{3,4})-([0-9]{2,6})$/';
         
         if (!preg_match($pattern, $roll_number, $matches)) {
             return [
                 'valid' => false,
-                'error' => 'Invalid roll number format. Expected: YY-[E]PROGRAM-NNN (e.g., 25-SWT-01, 24-ECSE-123)'
+                'error' => 'Invalid roll number format. Expected: XX-XXX-XX to XX-XXXX-XXXXXX (2–6 digit serial)'
             ];
         }
         
         $year_str = $matches[1];
-        $evening_flag = $matches[2];
-        $program = $matches[3];
-        $sequence = $matches[4];
+        $program = $matches[2];
+        $sequence = $matches[3];
         
         // Parse year (convert to full year)
         $admission_year = intval($year_str);
@@ -51,8 +53,8 @@ class RollParser {
             $admission_year += 2000;
         }
         
-        // Determine shift
-        $shift = ($evening_flag === 'E') ? 'Evening' : 'Morning';
+        // Shift not encoded in new format; default empty
+        $shift = '';
         
         // Parse sequence number
         $sequence_num = intval($sequence);
@@ -64,7 +66,7 @@ class RollParser {
             'shift' => $shift,
             'program' => $program,
             'sequence_number' => $sequence_num,
-            'is_evening' => $evening_flag === 'E'
+            'is_evening' => false
         ];
     }
     
@@ -80,21 +82,7 @@ class RollParser {
             $current_date = new DateTime();
         }
         
-        $current_year = intval($current_date->format('Y'));
-        $current_month = intval($current_date->format('n'));
-        
-        // Academic year starts in September
-        if ($current_month >= 9) {
-            $academic_year = $current_year;
-        } else {
-            $academic_year = $current_year - 1;
-        }
-        
-        // Calculate year of study
-        $year_of_study = $academic_year - $admission_year + 1;
-        
-        // Cap at 4 years (graduation)
-        return min(max($year_of_study, 1), 4);
+        return compute_year_of_study($admission_year, $current_date);
     }
     
     /**
@@ -106,7 +94,7 @@ class RollParser {
     public static function getShift($roll_number) {
         $parsed = self::parseRollNumber($roll_number);
         if (!$parsed['valid']) {
-            return 'Morning'; // Default to morning
+            return ''; // Unknown
         }
         
         return $parsed['shift'];

@@ -191,8 +191,7 @@ async function loadDashboard() {
             showAlert('Error loading dashboard: ' + data.error, 'error');
         }
         
-        // Load year progression status
-        await loadYearProgressionStatus();
+        // Year progression removed (semester-only). No status to load.
         
     } catch (error) {
         showAlert('Error loading dashboard: ' + error.message, 'error');
@@ -249,15 +248,15 @@ function updateCharts(data) {
         charts.shiftComparison.update();
     }
     
-    // Update year enrollment chart
+    // Update semester enrollment chart (uses year_level labels holding semester names)
     if (charts.yearEnrollment && data.students_by_year) {
-        const yearData = data.students_by_year.map(item => ({
+        const semData = data.students_by_year.map(item => ({
             label: item.year_level,
             value: parseInt(item.count)
         }));
         
-        charts.yearEnrollment.data.labels = yearData.map(item => item.label);
-        charts.yearEnrollment.data.datasets[0].data = yearData.map(item => item.value);
+        charts.yearEnrollment.data.labels = semData.map(item => item.label);
+        charts.yearEnrollment.data.datasets[0].data = semData.map(item => item.value);
         charts.yearEnrollment.update();
     }
 }
@@ -321,7 +320,7 @@ function initializeCharts() {
     // Shift comparison chart
     initShiftComparisonChart();
     
-    // Year-wise enrollment chart
+    // Semester-wise enrollment chart
     initYearEnrollmentChart();
 }
 
@@ -444,7 +443,7 @@ function initShiftComparisonChart() {
 }
 
 /**
- * Initialize year enrollment chart
+ * Initialize semester enrollment chart
  */
 function initYearEnrollmentChart() {
     const ctx = document.getElementById('year-enrollment-chart');
@@ -2030,32 +2029,9 @@ function setupRollNumberAutoFill() {
 }
 
 /**
- * Load year progression status
+ * Progression status removed (semester-only).
  */
-async function loadYearProgressionStatus() {
-    try {
-        const response = await fetch('api/year_progression_simple.php');
-        const result = await response.json();
-        
-        if (result.success) {
-            updateProgressionStatus(result);
-        } else {
-            console.error('Error loading progression status:', result.error);
-            updateProgressionStatus({
-                last_progression: 'Error loading data',
-                students_needing_update: 'Unknown',
-                current_academic_year: 'Unknown'
-            });
-        }
-    } catch (error) {
-        console.error('Error loading progression status:', error);
-        updateProgressionStatus({
-            last_progression: 'Error loading data',
-            students_needing_update: 'Unknown',
-            current_academic_year: 'Unknown'
-        });
-    }
-}
+async function loadYearProgressionStatus() { return; }
 
 /**
  * Update progression status display
@@ -2091,7 +2067,7 @@ function updateProgressionStatus(data) {
 }
 
 /**
- * Run year progression manually
+ * Run promotion (semester progression) manually
  */
 async function runYearProgression() {
     const button = document.getElementById('run-progression-btn');
@@ -2099,27 +2075,17 @@ async function runYearProgression() {
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
     }
-    
     try {
-        const response = await fetch('api/year_progression_simple.php?manual=true');
-        const result = await response.json();
-        
+        const res = await fetch('admin/api/promote_students.php?action=promote_by_elapsed', { method: 'POST' });
+        const result = await res.json();
         if (result.success) {
-            showAlert(`Year progression completed! Updated ${result.updated_students} students, ${result.graduated_students} graduated.`, 'success');
-            
-            // Reload the progression status
-            await loadYearProgressionStatus();
-            
-            // Reload students data if on students tab
-            if (currentTab === 'students') {
-                loadStudents(1);
-            }
+            showAlert(result.message || 'Promotion completed!', 'success');
+            if (currentTab === 'students') { loadStudents(1); }
         } else {
-            showAlert(`Year progression failed: ${result.error}`, 'error');
+            showAlert(result.message || 'Promotion failed', 'error');
         }
     } catch (error) {
-        console.error('Error running year progression:', error);
-        showAlert(`Error running year progression: ${error.message}`, 'error');
+        showAlert('Promotion failed: ' + error.message, 'error');
     } finally {
         if (button) {
             button.disabled = false;

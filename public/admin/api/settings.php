@@ -14,6 +14,7 @@ ini_set('log_errors', 1);     // Enable error logging
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/auth.php';
 
 class AdminSettingsAPI {
     private $pdo;
@@ -24,6 +25,30 @@ class AdminSettingsAPI {
         
         if (!$this->pdo) {
             error_log("Database connection failed in AdminSettingsAPI");
+        }
+    }
+    
+    private function isAcademicStructureKey($key) {
+        $keys = [
+            'academic_structure_mode',
+            'semesters_per_year',
+            'semester_names',
+            'semester_start_months',
+            'max_program_years',
+            'academic_year_start_month'
+        ];
+        return in_array($key, $keys, true);
+    }
+
+    private function hasRegisteredStudents() {
+        try {
+            $stmt = $this->pdo->query("SELECT COUNT(*) AS c FROM students");
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return (int)($row['c'] ?? 0) > 0;
+        } catch (Exception $e) {
+            // Be conservative: if we cannot verify, assume students exist to protect integrity
+            error_log('hasRegisteredStudents check failed: ' . $e->getMessage());
+            return true;
         }
     }
     
@@ -127,6 +152,11 @@ class AdminSettingsAPI {
                 ['key' => 'sync_interval_seconds', 'value' => '30', 'type' => 'integer'],
                 ['key' => 'timezone', 'value' => 'Asia/Karachi', 'type' => 'string'],
                 ['key' => 'academic_year_start_month', 'value' => '9', 'type' => 'integer'],
+                ['key' => 'academic_structure_mode', 'value' => 'year', 'type' => 'string'],
+                ['key' => 'semesters_per_year', 'value' => '2', 'type' => 'integer'],
+                ['key' => 'semester_names', 'value' => '["Semester 1","Semester 2"]', 'type' => 'json'],
+                ['key' => 'semester_start_months', 'value' => '[9,2]', 'type' => 'json'],
+                ['key' => 'max_program_years', 'value' => '4', 'type' => 'integer'],
                 ['key' => 'auto_absent_morning_hour', 'value' => '11', 'type' => 'integer'],
                 ['key' => 'auto_absent_evening_hour', 'value' => '17', 'type' => 'integer']
             ],
@@ -138,6 +168,11 @@ class AdminSettingsAPI {
                 ['key' => 'max_login_attempts', 'value' => '5', 'type' => 'integer'],
                 ['key' => 'login_lockout_minutes', 'value' => '15', 'type' => 'integer'],
                 ['key' => 'password_min_length', 'value' => '8', 'type' => 'integer']
+            ],
+            'backup' => [
+                ['key' => 'backup_frequency', 'value' => 'weekly', 'type' => 'string'],
+                ['key' => 'backup_retention_days', 'value' => '30', 'type' => 'integer'],
+                ['key' => 'last_backup_time', 'value' => null, 'type' => 'string']
             ]
         ];
     }
@@ -202,7 +237,7 @@ class AdminSettingsAPI {
     private function getCategoryForKey($key) {
         $categories = [
             'shift_timings' => ['morning_', 'evening_'],
-            'system_config' => ['sync_interval', 'timezone', 'academic_year', 'auto_absent'],
+'system_config' => ['sync_interval', 'timezone', 'academic_', 'academic_year', 'auto_absent'],
             'integration' => ['website_url', 'api_endpoint', 'api_key', 'api_timeout'],
             'advanced' => ['debug_mode', 'log_errors', 'show_errors', 'session_timeout', 'max_login', 'login_lockout', 'password_min', 'max_sync', 'api_rate'],
             'qr_code' => ['qr_code_'],
@@ -231,11 +266,15 @@ class AdminSettingsAPI {
             return 'integer';
         } elseif (is_float($value)) {
             return 'float';
+        } elseif (is_array($value)) {
+            return 'json';
+        } elseif (is_string($value) && @json_decode($value) !== null) {
+            return 'json';
         } elseif (filter_var($value, FILTER_VALIDATE_EMAIL)) {
             return 'email';
         } elseif (filter_var($value, FILTER_VALIDATE_URL)) {
             return 'url';
-        } elseif (preg_match('/^\d{2}:\d{2}:\d{2}$/', $value)) {
+        } elseif (is_string($value) && preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $value)) {
             return 'time';
         } else {
             return 'string';
@@ -259,7 +298,12 @@ class AdminSettingsAPI {
             'evening_class_end' => 'When evening shift class ends',
             'sync_interval_seconds' => 'How often to sync with web server',
             'timezone' => 'System timezone',
-            'academic_year_start_month' => 'When the academic year starts',
+'academic_year_start_month' => 'When the academic year starts',
+            'academic_structure_mode' => 'Academic structure mode (year-wise or semester-wise)',
+            'semesters_per_year' => 'Number of semesters per academic year',
+            'semester_names' => 'JSON array of semester display names',
+            'semester_start_months' => 'JSON array of semester start months (1-12) in order',
+            'max_program_years' => 'Maximum years for a program before graduation',
             'auto_absent_morning_hour' => 'Hour to mark morning shift absent',
             'auto_absent_evening_hour' => 'Hour to mark evening shift absent',
             'website_url' => 'Base URL of the web application',
@@ -292,6 +336,35 @@ class AdminSettingsAPI {
     /**
      * Get validation rules for a setting key
      */
+    private function valuesEqual($a, $b, $type) {
+        try {
+            switch ($type) {
+                case 'integer':
+                case 'number':
+                    return (int)$a === (int)$b;
+                case 'boolean':
+                    $normalize = function($v){ return in_array($v, [true, 'true', 1, '1', 'yes'], true); };
+                    return $normalize($a) === $normalize($b);
+                case 'json':
+                    if (is_string($a)) { $a = json_decode($a, true); }
+                    if (is_string($b)) { $b = json_decode($b, true); }
+                    $normalizeArray = function($v) use (&$normalizeArray) {
+                        if (is_array($v)) {
+                            // Sort associative arrays by key for stable compare; leave indexed arrays order as-is
+                            if (array_keys($v) !== range(0, count($v)-1)) { ksort($v); }
+                            foreach ($v as $k => $vv) { $v[$k] = $normalizeArray($vv); }
+                        }
+                        return $v;
+                    };
+                    return json_encode($normalizeArray($a)) === json_encode($normalizeArray($b));
+                default:
+                    return trim((string)$a) === trim((string)$b);
+            }
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
     private function getValidationRulesForKey($key) {
         $rules = [
             'morning_checkin_start' => ['required' => true, 'type' => 'time'],
@@ -307,7 +380,12 @@ class AdminSettingsAPI {
             // minimum_duration_minutes removed: no validation/enforcement
             'sync_interval_seconds' => ['required' => true, 'min' => 10, 'max' => 300],
             'timezone' => ['required' => true, 'options' => ['Asia/Karachi', 'UTC', 'America/New_York', 'Europe/London']],
-            'academic_year_start_month' => ['required' => true, 'min' => 1, 'max' => 12],
+'academic_year_start_month' => ['required' => true, 'min' => 1, 'max' => 12],
+            'academic_structure_mode' => ['required' => true, 'options' => ['year','semester']],
+            'semesters_per_year' => ['required' => true, 'min' => 1, 'max' => 4, 'type' => 'integer'],
+            'semester_names' => ['required' => true, 'type' => 'json'],
+            'semester_start_months' => ['required' => true, 'type' => 'json'],
+            'max_program_years' => ['required' => true, 'min' => 1, 'max' => 6, 'type' => 'integer'],
             'auto_absent_morning_hour' => ['required' => true, 'min' => 8, 'max' => 16],
             'auto_absent_evening_hour' => ['required' => true, 'min' => 14, 'max' => 20],
             'website_url' => ['required' => true, 'type' => 'url'],
@@ -339,10 +417,19 @@ class AdminSettingsAPI {
             case 'float':
                 return (float) $value;
             case 'boolean':
-                return in_array(strtolower($value), ['true', '1', 'yes']);
+                // Handle string values 'enabled'/'disabled' directly
+                if (in_array(strtolower($value), ['enabled', 'disabled'])) {
+                    return $value;
+                }
+                // Handle boolean values
+                $boolValue = in_array(strtolower($value), ['true', '1', 'yes']);
+                return $boolValue ? 'enabled' : 'disabled';
             case 'time':
             case 'url':
             case 'email':
+            case 'json':
+                $decoded = json_decode($value, true);
+                return $decoded !== null ? $decoded : $value;
             case 'string':
             default:
                 return $value;
@@ -551,6 +638,24 @@ class AdminSettingsAPI {
         try {
             // Get current setting info
             $current = $this->getSetting($key);
+
+            // Guard: prevent academic structure edits if students exist (only if value actually changes)
+            if ($this->isAcademicStructureKey($key) && $this->hasRegisteredStudents()) {
+                $setting_info = $current['success'] ? $current['data'] : null;
+                $current_value = $setting_info ? $setting_info['value'] : null;
+                $current_type = $setting_info ? $setting_info['type'] : $this->getTypeForValue($value);
+                if ($this->valuesEqual($current_value, $value, $current_type)) {
+                    return [
+                        'success' => true,
+                        'message' => 'No change to academic structure (updates skipped due to existing students)',
+                        'data' => ['key' => $key, 'value' => $current_value]
+                    ];
+                }
+                return [
+                    'success' => false,
+                    'message' => 'Academic structure cannot be modified because students already exist. Remove all students first to change structure.'
+                ];
+            }
             
             if (!$current['success']) {
                 // Setting doesn't exist, create it
@@ -558,6 +663,29 @@ class AdminSettingsAPI {
             }
             
             $setting_info = $current['data'];
+
+            // Normalize JSON inputs for academic fields
+            if (in_array($key, ['semester_names', 'semester_start_months'], true)) {
+                if (is_string($value)) {
+                    $trim = trim($value);
+                    // Allow simple CSV as fallback (e.g., Fall,Spring or 9,2)
+                    if ($trim !== '' && $trim[0] !== '[' && $trim[strlen($trim)-1] !== ']') {
+                        $parts = array_map('trim', explode(',', $trim));
+                        $value = ($key === 'semester_start_months') ? array_map('intval', $parts) : $parts;
+                    } else {
+                        $decoded = json_decode($trim, true);
+                        if (json_last_error() === JSON_ERROR_NONE) {
+                            $value = $decoded;
+                        }
+                    }
+                }
+                // Basic sanitize
+                if ($key === 'semester_start_months' && is_array($value)) {
+                    $value = array_values(array_filter(array_map(function($m){
+                        $m = (int)$m; return ($m>=1 && $m<=12)?$m:null;
+                    }, $value), function($v){ return $v !== null; }));
+                }
+            }
             
             // Validate the value
             $validation = $this->validateSetting($key, $value, $setting_info['validation_rules']);
@@ -664,6 +792,34 @@ class AdminSettingsAPI {
     public function bulkUpdateSettings($settings, $updated_by = 'admin') {
         try {
             error_log("Bulk update started with " . count($settings) . " settings");
+
+            $studentsExist = $this->hasRegisteredStudents();
+            $allowed = [];
+            $skipped = [];
+            foreach ($settings as $s) {
+                $key = $s['key'] ?? '';
+                $val = $s['value'] ?? null;
+                if ($studentsExist && $this->isAcademicStructureKey($key)) {
+                    $curr = $this->getSetting($key);
+                    if ($curr['success']) {
+                        $info = $curr['data'];
+                        if ($this->valuesEqual($info['value'], $val, $info['type'])) {
+                            // No change; skip silently but record
+                            $skipped[] = [ 'key' => $key, 'reason' => 'no-change (students exist)' ];
+                            continue; // nothing to update
+                        } else {
+                            // Change requested but students exist -> block this key
+                            $skipped[] = [ 'key' => $key, 'reason' => 'blocked (students exist)' ];
+                            continue;
+                        }
+                    } else {
+                        // If cannot fetch current, be conservative and block
+                        $skipped[] = [ 'key' => $key, 'reason' => 'blocked (cannot read current value)' ];
+                        continue;
+                    }
+                }
+                $allowed[] = $s;
+            }
             error_log("Settings data: " . print_r($settings, true));
             
             $this->pdo->beginTransaction();
@@ -671,7 +827,7 @@ class AdminSettingsAPI {
             $results = [];
             $errors = [];
             
-            foreach ($settings as $setting) {
+            foreach ($allowed as $setting) {
                 $key = $setting['key'];
                 $value = $setting['value'];
                 
@@ -696,12 +852,15 @@ class AdminSettingsAPI {
             if (empty($errors)) {
                 $this->pdo->commit();
                 
-                // Settings updated in database
-                
+                $msg = 'Settings updated successfully';
+                if (!empty($skipped)) {
+                    $msg .= ' (some academic structure changes were skipped)';
+                }
                 return [
                     'success' => true,
-                    'message' => 'All settings updated successfully',
-                    'updated_count' => count($settings)
+                    'message' => $msg,
+                    'updated_count' => count($allowed),
+                    'skipped' => $skipped
                 ];
             } else {
                 $this->pdo->rollBack();
@@ -859,6 +1018,51 @@ class AdminSettingsAPI {
     }
     
     /**
+     * Import settings from JSON
+     */
+    public function importSettings($data) {
+        try {
+            if (!isset($data['data']) || !is_array($data['data'])) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid import data format'
+                ];
+            }
+            
+            $imported = 0;
+            $errors = [];
+            
+            foreach ($data['data'] as $category => $settings) {
+                if (!is_array($settings)) continue;
+                
+                foreach ($settings as $setting) {
+                    if (!isset($setting['key']) || !isset($setting['value'])) continue;
+                    
+                    $result = $this->updateSetting($setting['key'], $setting['value'], 'admin');
+                    if ($result['success']) {
+                        $imported++;
+                    } else {
+                        $errors[] = "Failed to import {$setting['key']}: " . $result['message'];
+                    }
+                }
+            }
+            
+            return [
+                'success' => true,
+                'message' => "Imported {$imported} settings successfully",
+                'imported_count' => $imported,
+                'errors' => $errors
+            ];
+            
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Import failed: ' . $e->getMessage()
+            ];
+        }
+    }
+    
+    /**
      * Export all settings as JSON
      */
     public function exportSettings() {
@@ -889,9 +1093,22 @@ class AdminSettingsAPI {
     private function convertToString($value, $type) {
         switch ($type) {
             case 'boolean':
-                return $value ? 'true' : 'false';
+                // For module settings, convert to 'enabled'/'disabled'
+                if ($value === 'enabled' || $value === 'disabled') {
+                    return $value;
+                }
+                return $value ? 'enabled' : 'disabled';
             case 'integer':
                 return (string) $value;
+            case 'json':
+                if (is_string($value)) {
+                    // Validate JSON string before storing
+                    json_decode($value, true);
+                    if (json_last_error() === JSON_ERROR_NONE) return $value;
+                    // If invalid, try to coerce
+                    $value = @json_decode($value, true);
+                }
+                return json_encode($value, JSON_UNESCAPED_UNICODE);
             default:
                 return (string) $value;
         }
@@ -937,6 +1154,34 @@ class AdminSettingsAPI {
                         $errors[] = "Invalid URL format";
                         return ['valid' => false, 'errors' => $errors];
                     }
+                    break;
+                case 'json':
+                    if (is_string($value)) {
+                        $decoded = json_decode($value, true);
+                        if (json_last_error() === JSON_ERROR_NONE) {
+                            $value = $decoded; // proceed with decoded value
+                        } else {
+                            $errors[] = 'Invalid JSON';
+                            return ['valid' => false, 'errors' => $errors];
+                        }
+                    }
+                    if (!is_array($value)) {
+                        $errors[] = 'Value must be JSON array/object';
+                        return ['valid' => false, 'errors' => $errors];
+                    }
+                    // Extra semantic checks for our fields
+                    if ($key === 'semester_names') {
+                        // Ensure array of strings
+                        foreach ($value as $n) {
+                            if (!is_string($n) || $n === '') { $errors[] = 'Semester names must be non-empty strings'; break; }
+                        }
+                    }
+                    if ($key === 'semester_start_months') {
+                        foreach ($value as $m) {
+                            if (!is_numeric($m) || $m < 1 || $m > 12) { $errors[] = 'Semester months must be integers 1-12'; break; }
+                        }
+                    }
+                    if (!empty($errors)) { return ['valid' => false, 'errors' => $errors]; }
                     break;
                 case 'time':
                     // Validate time format (HH:MM or HH:MM:SS)
@@ -1019,9 +1264,117 @@ class AdminSettingsAPI {
     /**
      * Legacy sync functions removed - settings are now stored in database only
      */
+    
+    /**
+     * Upload logo and save to settings
+     */
+    public function uploadLogo($file) {
+        try {
+            if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+                return ['success' => false, 'message' => 'No file uploaded'];
+            }
+            
+            // Validate file type
+            $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+            if (!in_array($file['type'], $allowedTypes)) {
+                return ['success' => false, 'message' => 'Invalid file type. Only JPEG, PNG, and GIF are allowed.'];
+            }
+            
+            // Validate file size (2MB max)
+            if ($file['size'] > 2 * 1024 * 1024) {
+                return ['success' => false, 'message' => 'File size must be less than 2MB'];
+            }
+            
+            // Create upload directory if it doesn't exist
+            // From public/admin/api/, go up two levels to public/
+            $uploadDir = '../../uploads/logos/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            
+            // Generate unique filename
+            $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+            $filename = 'logo_' . time() . '.' . $extension;
+            $filepath = $uploadDir . $filename;
+            
+            // Move uploaded file
+            if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+                return ['success' => false, 'message' => 'Failed to save file'];
+            }
+            
+            // Verify file was saved
+            if (!file_exists($filepath)) {
+                error_log("File was not saved to: {$filepath}");
+                return ['success' => false, 'message' => 'File was not saved successfully'];
+            }
+            
+            // Save to settings
+            $logoPath = 'uploads/logos/' . $filename;
+            $stmt = $this->pdo->prepare("
+                INSERT INTO system_settings (setting_key, setting_value, setting_type) 
+                VALUES ('sidebar_logo', ?, 'string')
+                ON DUPLICATE KEY UPDATE setting_value = ?
+            ");
+            $stmt->execute([$logoPath, $logoPath]);
+            
+            // Generate favicons from the uploaded logo
+            if (function_exists('generateFaviconFromLogo') && extension_loaded('gd')) {
+                $fullLogoPath = '../../uploads/logos/' . $filename;
+                generateFaviconFromLogo($fullLogoPath);
+            }
+            
+            return [
+                'success' => true,
+                'logo_url' => '../uploads/logos/' . $filename,
+                'message' => 'Logo uploaded successfully'
+            ];
+            
+        } catch (Exception $e) {
+            error_log("Logo upload error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+    
+    /**
+     * Update general settings (project name, tagline, etc.)
+     */
+    public function updateGeneralSettings($input) {
+        try {
+            $settings = [
+                'project_name' => $input['project_name'] ?? '',
+                'project_short_name' => $input['project_short_name'] ?? '',
+                'project_tagline' => $input['project_tagline'] ?? ''
+            ];
+            
+            $stmt = $this->pdo->prepare("
+                INSERT INTO system_settings (setting_key, setting_value, setting_type) 
+                VALUES (?, ?, 'string')
+                ON DUPLICATE KEY UPDATE setting_value = ?
+            ");
+            
+            foreach ($settings as $key => $value) {
+                $stmt->execute([$key, $value, $value]);
+            }
+            
+            return [
+                'success' => true,
+                'message' => 'General settings updated successfully'
+            ];
+            
+        } catch (Exception $e) {
+            error_log("General settings update error: " . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
 }
 
 // Handle API requests
+if (!isAdminLoggedIn()) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Authentication required']);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = $_GET['action'] ?? '';
     $api = new AdminSettingsAPI();
@@ -1071,6 +1424,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         case 'export':
             $result = $api->exportSettings();
             break;
+        
+        case 'get':
+            $key = $_GET['key'] ?? '';
+            if (!$key) {
+                $result = ['success' => false, 'message' => 'Key required'];
+            } else {
+                $res = $api->getSetting($key);
+                if ($res['success']) {
+                    $result = ['success' => true, 'key' => $key, 'value' => $res['data']['value']];
+                } else {
+                    $result = $res;
+                }
+            }
+            break;
             
         default:
             $result = ['success' => false, 'message' => 'Invalid action'];
@@ -1080,6 +1447,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     echo json_encode($result);
     
 } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Check if this is a file upload
+    if (isset($_FILES['logo']) && isset($_POST['action']) && $_POST['action'] === 'upload_logo') {
+        $api = new AdminSettingsAPI();
+        $result = $api->uploadLogo($_FILES['logo']);
+        header('Content-Type: application/json');
+        echo json_encode($result);
+        exit();
+    }
+    
+    // Handle JSON requests
     $input = json_decode(file_get_contents('php://input'), true);
     $action = $input['action'] ?? '';
     $api = new AdminSettingsAPI();
@@ -1093,8 +1470,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $result = $api->updateSetting($input['key'] ?? '', $input['value'] ?? '', $input['updated_by'] ?? 'admin');
             break;
             
+        case 'import':
+            $result = $api->importSettings($input);
+            break;
+            
         case 'validate_timings':
             $result = $api->validateTimings($input['timings'] ?? []);
+            break;
+            
+        case 'update_general_settings':
+            $result = $api->updateGeneralSettings($input);
             break;
             
         default:

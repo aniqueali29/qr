@@ -25,7 +25,7 @@ $pageJS = $pageJS ?? [];
                         document.write(new Date().getFullYear());
                     </script>
                     , made with ❤️ by
-                    <a href="#" target="_blank" class="footer-link">QR Attendance System</a>
+                    <a href="https://sharelimitless.com/" target="_blank" class="footer-link">Sharelimitless.com</a>
                 </div>
                 <div class="d-none d-lg-inline-block">
                     <a href="#" class="footer-link me-4">Documentation</a>
@@ -55,7 +55,7 @@ $pageJS = $pageJS ?? [];
 
 <!-- Page-specific JS -->
 <?php foreach ($pageJS as $js): ?>
-    <script src="<?php echo getAdminAssetUrl($js . '?v=' . time()); ?>"></script>
+    <script src="<?php echo getAdminAssetUrl($js); ?>?v=<?php echo time(); ?>"></script>
 <?php endforeach; ?>
 
 <!-- Main JS -->

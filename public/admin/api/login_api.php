@@ -41,8 +41,12 @@ $action = $_POST['action'] ?? '';
 try {
     switch ($action) {
         case 'login':
+            // Log login attempt
+            error_log("🔐 Admin login attempt - Username: " . ($_POST['username'] ?? 'empty') . " - IP: " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+            
             // Validate CSRF token
             if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+                error_log("❌ CSRF token validation failed");
                 echo json_encode(['success' => false, 'message' => 'Invalid security token. Please try again.']);
                 exit();
             }
@@ -51,12 +55,17 @@ try {
             $password = $_POST['password'] ?? '';
             $remember = isset($_POST['remember']);
             
+            error_log("📝 Login data - Username: $username - Password length: " . strlen($password) . " - Remember: " . ($remember ? 'yes' : 'no'));
+            
             if (empty($username) || empty($password)) {
+                error_log("❌ Empty username or password");
                 echo json_encode(['success' => false, 'message' => 'Username and password are required']);
                 exit();
             }
             
+            error_log("🚀 Calling adminAuth->login()");
             $result = $adminAuth->login($username, $password, $remember);
+            error_log("📊 Login result: " . json_encode($result));
             echo json_encode($result);
             break;
             

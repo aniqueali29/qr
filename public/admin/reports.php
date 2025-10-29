@@ -11,6 +11,9 @@ require_once 'includes/helpers.php';
 // Require admin authentication
 requireAdminAuth();
 
+// Check if module is enabled
+requireModuleEnabled('module_reports');
+
 $pageTitle = "Attendance Reports";
 $currentPage = "reports";
 $pageCSS = ['css/responsive-buttons.css'];
@@ -93,7 +96,7 @@ include 'partials/navbar.php';
                                 </span>
                             </div>
                             <div>
-                                <small class="text-muted d-block">Avg Attendance (11 Months)</small>
+                                <small class="text-muted d-block" id="stat-avg-label">Session Attendance</small>
                                 <h4 class="mb-0" id="stat-avg-attendance">-</h4>
                             </div>
                         </div>
@@ -111,7 +114,7 @@ include 'partials/navbar.php';
                                 </span>
                             </div>
                             <div>
-                                <small class="text-muted d-block">11 Months Avg</small>
+                                <small class="text-muted d-block" id="stat-month-label">Session Avg</small>
                                 <h4 class="mb-0" id="stat-month-attendance">-</h4>
                             </div>
                         </div>
@@ -140,6 +143,7 @@ include 'partials/navbar.php';
                                 <option value="monthly">Monthly Report</option>
                                 <option value="11months">11 Months Report</option>
                                 <option value="custom">Custom Date Range</option>
+                                <option value="session">Session Report</option>
                                 <option value="student">Student-wise Report</option>
                                 <option value="program">Program-wise Report</option>
                             </select>
@@ -182,9 +186,9 @@ include 'partials/navbar.php';
 
                         <!-- Year Level Filter -->
                         <div class="col-md-4" id="year-level-select-container" style="display: none;">
-                            <label class="form-label">Select Year Level</label>
+                            <label class="form-label">Select Semester</label>
                             <select id="year-level-select" class="form-select">
-                                <option value="">All Year Levels</option>
+                                <option value="">All Semesters</option>
                             </select>
                         </div>
 
@@ -226,14 +230,14 @@ include 'partials/navbar.php';
             <div class="col-md-8 mb-4">
                 <div class="card">
                     <div class="card-header d-flex align-items-center justify-content-between">
-                        <h5 class="card-title mb-0">
-                            <i class="bx bx-line-chart me-2"></i>Attendance Trend (Last 11 Months)
+                        <h5 class="card-title mb-0" id="trend-chart-title">
+                            <i class="bx bx-line-chart me-2"></i>Attendance Trend
                         </h5>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" class="btn btn-outline-primary" onclick="loadTrendChart(7)">7 Days</button>
                             <button type="button" class="btn btn-outline-primary" onclick="loadTrendChart(30)">30 Days</button>
                             <button type="button" class="btn btn-outline-primary" onclick="loadTrendChart(90)">90 Days</button>
-                            <button type="button" class="btn btn-outline-primary active" onclick="loadTrendChart(330)">11 Months</button>
+                            <button type="button" class="btn btn-outline-primary active" onclick="loadTrendChart('session')" id="session-trend-btn">Session</button>
                         </div>
                     </div>
                     <div class="card-body">
@@ -464,13 +468,49 @@ function toggleFilters(reportType) {
         shiftContainer.style.display = 'block';
         yearLevelContainer.style.display = 'block';
         sectionContainer.style.display = 'block';
+        
+        // Load initial sections when filters become visible
+        setTimeout(() => {
+            loadSectionOptions('', '', '');
+        }, 100);
+    } else if (reportType === 'session') {
+        // Show all filters for session report
+        programContainer.style.display = 'block';
+        shiftContainer.style.display = 'block';
+        yearLevelContainer.style.display = 'block';
+        sectionContainer.style.display = 'block';
+        
+        // Load initial sections when filters become visible
+        setTimeout(() => {
+            loadSectionOptions('', '', '');
+        }, 100);
+        
+        // Set session dates
+        setSessionDates();
     } else if (reportType === 'custom' || reportType === 'daily' || reportType === 'weekly' || reportType === 'monthly' || reportType === '11months') {
         // Show all filters for custom date range reports
         programContainer.style.display = 'block';
         shiftContainer.style.display = 'block';
         yearLevelContainer.style.display = 'block';
         sectionContainer.style.display = 'block';
+        
+        // Load initial sections when filters become visible
+        setTimeout(() => {
+            loadSectionOptions('', '', '');
+        }, 100);
     }
+}
+
+function setSessionDates() {
+    fetch('api/reports.php?action=get_session_dates')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.start_date && data.end_date) {
+                document.getElementById('from-date').value = data.start_date;
+                document.getElementById('to-date').value = data.end_date;
+            }
+        })
+        .catch(error => console.error('Error loading session dates:', error));
 }
 
 function setDateDefaults(reportType) {
@@ -542,8 +582,18 @@ function generateReport() {
         section: section
     });
     
-    UIHelpers.showInfo('Generating report...');
-    window.open(`api/reports.php?${params}`, '_blank');
+    try {
+        UIHelpers.showInfo('Generating report... This may take a moment.');
+        window.open(`api/reports.php?${params}`, '_blank');
+        
+        // Show success message after a brief delay
+        setTimeout(() => {
+            UIHelpers.showSuccess('Report generation initiated. Check your browser downloads.');
+        }, 1000);
+    } catch (error) {
+        console.error('Error generating report:', error);
+        UIHelpers.showError('Failed to generate report. Please try again.');
+    }
 }
 
 function resetReportForm() {
@@ -565,9 +615,21 @@ function loadQuickStats() {
                 document.getElementById('stat-present-today').textContent = data.data.present_today;
                 document.getElementById('stat-avg-attendance').textContent = data.data.avg_attendance + '%';
                 document.getElementById('stat-month-attendance').textContent = data.data.month_attendance + '%';
+                
+                // Update labels based on session
+                if (data.data.session_label) {
+                    document.getElementById('stat-avg-label').textContent = 'Avg Attendance (' + data.data.session_label + ')';
+                    document.getElementById('stat-month-label').textContent = data.data.session_label + ' Avg';
+                }
+            } else {
+                console.error('Error loading stats:', data.error);
+                UIHelpers.showWarning('Failed to load statistics: ' + (data.error || 'Unknown error'));
             }
         })
-        .catch(error => console.error('Error loading stats:', error));
+        .catch(error => {
+            console.error('Error loading stats:', error);
+            UIHelpers.showError('Error connecting to server. Please refresh the page.');
+        });
 }
 
 function loadProgramStats() {
@@ -576,9 +638,15 @@ function loadProgramStats() {
         .then(data => {
             if (data.success) {
                 updateProgramStatsTable(data.data);
+            } else {
+                console.error('Error loading program stats:', data.error);
+                document.getElementById('program-stats-table').innerHTML = '<tr><td colspan="3" class="text-center text-muted">No data available</td></tr>';
             }
         })
-        .catch(error => console.error('Error loading program stats:', error));
+        .catch(error => {
+            console.error('Error loading program stats:', error);
+            document.getElementById('program-stats-table').innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error loading data</td></tr>';
+        });
 }
 
 function updateProgramStatsTable(stats) {
@@ -611,9 +679,15 @@ function loadShiftStats() {
         .then(data => {
             if (data.success) {
                 updateShiftStatsTable(data.data);
+            } else {
+                console.error('Error loading shift stats:', data.error);
+                document.getElementById('shift-stats-table').innerHTML = '<tr><td colspan="3" class="text-center text-muted">No data available</td></tr>';
             }
         })
-        .catch(error => console.error('Error loading shift stats:', error));
+        .catch(error => {
+            console.error('Error loading shift stats:', error);
+            document.getElementById('shift-stats-table').innerHTML = '<tr><td colspan="3" class="text-center text-danger">Error loading data</td></tr>';
+        });
 }
 
 function updateShiftStatsTable(stats) {
@@ -646,9 +720,15 @@ function loadTrends() {
         .then(data => {
             if (data.success) {
                 updateTrendsTable(data.data);
+            } else {
+                console.error('Error loading trends:', data.error);
+                document.getElementById('trends-table').innerHTML = '<tr><td colspan="5" class="text-center text-muted">No data available</td></tr>';
             }
         })
-        .catch(error => console.error('Error loading trends:', error));
+        .catch(error => {
+            console.error('Error loading trends:', error);
+            document.getElementById('trends-table').innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading data</td></tr>';
+        });
 }
 
 function updateTrendsTable(trends) {
@@ -732,20 +812,14 @@ function loadShiftOptions() {
 }
 
 function loadYearLevelOptions() {
-    // Load max_program_years setting and populate year levels dynamically
-    fetch('api/settings.php?action=get&key=max_program_years')
-        .then(response => response.json())
-        .then(data => {
-            const maxYears = data.success && data.value ? parseInt(data.value) : 4;
             const select = document.getElementById('year-level-select');
-            select.innerHTML = '<option value="">All Year Levels</option>';
+    select.innerHTML = '<option value="">All Semesters</option>';
             
-            // Add year levels based on max_program_years setting
-            const yearLabels = ['1st', '2nd', '3rd', '4th'];
-            for (let i = 1; i <= maxYears; i++) {
+    // Add semester options (1 to 8)
+    for (let i = 1; i <= 8; i++) {
                 const option = document.createElement('option');
-                option.value = yearLabels[i-1];
-                option.textContent = yearLabels[i-1] + ' Year';
+        option.value = `Semester ${i}`;
+        option.textContent = `Semester ${i}`;
                 select.appendChild(option);
             }
             
@@ -754,19 +828,6 @@ function loadYearLevelOptions() {
             completedOption.value = 'Completed';
             completedOption.textContent = 'Completed';
             select.appendChild(completedOption);
-        })
-        .catch(error => {
-            console.error('Error loading year levels:', error);
-            // Default to 4 years if error
-            const select = document.getElementById('year-level-select');
-            select.innerHTML = '<option value="">All Year Levels</option>';
-            ['1st', '2nd', '3rd', '4th'].forEach(year => {
-                const option = document.createElement('option');
-                option.value = year;
-                option.textContent = year + ' Year';
-                select.appendChild(option);
-            });
-        });
 }
 
 function loadSectionOptions(program = '', yearLevel = '', shift = '') {
@@ -808,11 +869,19 @@ function getProgressBadgeClass(percentage) {
 }
 
 function refreshProgramStats() {
+    UIHelpers.showInfo('Refreshing program statistics...');
     loadProgramStats();
+    setTimeout(() => {
+        UIHelpers.showSuccess('Program statistics updated');
+    }, 500);
 }
 
 function refreshShiftStats() {
+    UIHelpers.showInfo('Refreshing shift statistics...');
     loadShiftStats();
+    setTimeout(() => {
+        UIHelpers.showSuccess('Shift statistics updated');
+    }, 500);
 }
 
 // ========== CHART.JS VISUALIZATION ==========
@@ -821,7 +890,7 @@ let trendChart, programChart, shiftChart, monthlyChart;
 
 function initCharts() {
     // Initialize all charts
-    loadTrendChart(330); // Default to 11 months
+    loadTrendChart('session'); // Default to session
     loadProgramDistChart();
     loadShiftPerformanceChart();
     loadMonthlyComparisonChart();
@@ -829,7 +898,15 @@ function initCharts() {
 
 // Attendance Trend Line Chart
 function loadTrendChart(days = 30) {
-    fetch(`api/reports.php?action=trends&days=${days}`)
+    let url = `api/reports.php?action=trends`;
+    
+    if (days === 'session') {
+        url += `&session=true`;
+    } else {
+        url += `&days=${days}`;
+    }
+    
+    fetch(url)
         .then(response => response.json())
         .then(data => {
             if (!data.success) return;

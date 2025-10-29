@@ -110,6 +110,74 @@ ob_clean();
 echo json_encode(['success' => false, 'message' => 'Invalid request method']);
 
 /**
+ * Get branding information from settings
+ */
+function getBrandingInfo() {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("
+            SELECT setting_key, setting_value 
+            FROM system_settings 
+            WHERE setting_key IN ('sidebar_logo', 'project_name', 'project_short_name', 'project_tagline')
+        ");
+        $stmt->execute();
+        $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+        
+        // Debug: Log what we fetched
+        error_log("Branding settings fetched: " . json_encode($settings));
+        
+        // Get logo - check if it exists
+        $logo_path = $settings['sidebar_logo'] ?? '';
+        $logo_url = '';
+        
+        if ($logo_path) {
+            // $logo_path from database: "uploads/logos/filename.jpg"
+            // We're in: public/api/
+            // We need: ../uploads/logos/filename.jpg
+            $logo_url = '../' . ltrim($logo_path, '/');
+            
+            // Verify file exists - check from public/uploads/
+            $full_path = realpath(__DIR__ . '/../' . $logo_path);
+            if (!$full_path || !file_exists($full_path)) {
+                error_log("Logo file not found at: " . ($full_path ?? $logo_path));
+                $logo_url = '';
+            }
+        }
+        
+        // Fallback to default logo if custom logo not found
+        if (empty($logo_url)) {
+            $logo_url = '../assets/img/logo.jpeg';
+        }
+        
+        // Get project name - if empty, check if we need to use it at all
+        $institution_name = !empty($settings['project_name']) ? $settings['project_name'] : 'JINNAH POLYTECHNIC INSTITUTE';
+        
+        $result = [
+            'logo_url' => $logo_url,
+            'institution_name' => $institution_name,
+            'short_name' => $settings['project_short_name'] ?? 'JPI',
+            'tagline' => $settings['project_tagline'] ?? ''
+        ];
+        
+        // Debug: Log the final result
+        error_log("Branding result: " . json_encode($result));
+        error_log("Institution name being used: " . $institution_name);
+        
+        return $result;
+    } catch (Exception $e) {
+        error_log("Error getting branding info: " . $e->getMessage());
+        // Return defaults on error
+        return [
+            'logo_url' => '../assets/img/logo.jpeg',
+            'institution_name' => 'JINNAH POLYTECHNIC INSTITUTE',
+            'short_name' => 'JPI',
+            'tagline' => ''
+        ];
+    }
+}
+
+/**
  * Check admin session in database as fallback authentication
  */
 function checkAdminSessionInDatabase() {
@@ -334,6 +402,12 @@ function generateCardHTML($student, $for_pdf = false) {
     $current_year = date('Y');
     $card_id = 'AC' . strtoupper(substr(md5($student_id), 0, 8));
     
+    // Get branding information
+    $branding = getBrandingInfo();
+    
+    // Debug: Ensure branding has values
+    error_log("generateCardHTML - branding data: " . json_encode($branding));
+    
     $print_styles = '';
     if ($for_pdf) {
         $print_styles = '
@@ -507,10 +581,10 @@ function generateCardHTML($student, $for_pdf = false) {
         <div class="attendance-card">
             <div class="card-header">
                 <div class="logo-section">
-                    <img src="../assets/img/logo.jpeg" alt="JPI Logo" />
+                    <img src="' . htmlspecialchars($branding['logo_url']) . '" alt="' . htmlspecialchars($branding['short_name']) . ' Logo" />
                 </div>
                 <div class="header-text">
-                    <div class="institution-name">JINNAH POLYTECHNIC INSTITUTE</div>
+                    <div class="institution-name">' . htmlspecialchars($branding['institution_name']) . '</div>
                     <div class="card-type">Student Attendance Card</div>
                 </div>
             </div>
@@ -560,6 +634,9 @@ function generateCardHTML($student, $for_pdf = false) {
  * Generate bulk card HTML for PDF
  */
 function generateBulkCardHTML($students, $filename = null) {
+    // Get branding information
+    $branding = getBrandingInfo();
+    
     $html = '<!DOCTYPE html>
     <html lang="en">
     <head>
@@ -772,10 +849,10 @@ function generateBulkCardHTML($students, $filename = null) {
         <div class="attendance-card">
             <div class="card-header">
                 <div class="logo-section">
-                    <img src="../assets/img/logo.jpeg" alt="JPI Logo" />
+                    <img src="' . htmlspecialchars($branding['logo_url']) . '" alt="' . htmlspecialchars($branding['short_name']) . ' Logo" />
                 </div>
                 <div class="header-text">
-                    <div class="institution-name">JINNAH POLYTECHNIC INSTITUTE</div>
+                    <div class="institution-name">' . htmlspecialchars($branding['institution_name']) . '</div>
                     <div class="card-type">Student Attendance Card</div>
                 </div>
             </div>

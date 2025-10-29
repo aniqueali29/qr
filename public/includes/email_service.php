@@ -7,9 +7,6 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-// Load PHPMailer
-require_once __DIR__ . '/../vendor/autoload.php';
-
 class EmailService {
     
     private $mailer;
@@ -17,8 +14,30 @@ class EmailService {
     private $from_name;
     
     public function __construct() {
-        $this->mailer = new PHPMailer(true);
-        $this->configureSMTP();
+        // Try to load PHPMailer
+        $autoloadPath = __DIR__ . '/../vendor/autoload.php';
+        if (file_exists($autoloadPath)) {
+            require_once $autoloadPath;
+        } else {
+            // Fallback: try from public directory
+            $autoloadPath = __DIR__ . '/../../vendor/autoload.php';
+            if (file_exists($autoloadPath)) {
+                require_once $autoloadPath;
+            }
+        }
+        
+        try {
+            // Check if PHPMailer is available
+            if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
+                throw new Exception("PHPMailer class not available");
+            }
+            
+            $this->mailer = new \PHPMailer\PHPMailer\PHPMailer(true);
+            $this->configureSMTP();
+        } catch (Exception $e) {
+            error_log("EmailService initialization error: " . $e->getMessage());
+            // Don't throw - let the constructor complete so we can handle gracefully
+        }
     }
     
     /**
@@ -218,9 +237,142 @@ class EmailService {
         <p>{$reset_link}</p>
         <p>This link will expire in 1 hour.</p>
         <p>If you didn't request this, please ignore this email.</p>
+        </div>
+    </body>
+</html>";
+    }
+    
+    /**
+     * Send staff account credentials email
+     */
+    public function sendStaffAccountCredentials($to_email, $staff_name, $username, $password, $login_url) {
+        try {
+            $this->mailer->clearAddresses();
+            $this->mailer->addAddress($to_email, $staff_name);
+            
+            $this->mailer->Subject = 'Your Staff Account Credentials - QR Attendance System';
+            
+            // Email body with credentials
+            $body = $this->getStaffAccountEmailTemplate($staff_name, $username, $password, $login_url);
+            $this->mailer->Body = $body;
+            
+            // Plain text version
+            $this->mailer->AltBody = $this->getStaffAccountTextTemplate($staff_name, $username, $password, $login_url);
+            
+            $result = $this->mailer->send();
+            
+            if ($result) {
+                error_log("Staff account credentials sent to: {$to_email}");
+                return ['success' => true, 'message' => 'Credentials sent successfully'];
+            } else {
+                return ['success' => false, 'message' => 'Failed to send credentials'];
+            }
+            
+        } catch (Exception $e) {
+            error_log("Email sending error: " . $e->getMessage());
+            return ['success' => false, 'message' => 'Email sending failed: ' . $e->getMessage()];
+        }
+    }
+    
+    /**
+     * Staff account email template (HTML)
+     */
+    private function getStaffAccountEmailTemplate($name, $username, $password, $login_url) {
+        $site_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'] . dirname(dirname($_SERVER['PHP_SELF']));
+        return "
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Welcome to QR Attendance System</title>
+</head>
+<body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>
+        <h1 style='color: white; margin: 0;'>Welcome to QR Attendance System</h1>
+        <p style='color: #f0f0f0; margin: 10px 0 0 0;'>Your Staff Account Has Been Created</p>
+    </div>
+    
+    <div style='background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-radius: 0 0 10px 10px;'>
+        <p>Dear <strong>{$name}</strong>,</p>
+        
+        <p>Your staff account has been successfully created for the QR Attendance System. Below are your login credentials:</p>
+        
+        <div style='background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;'>
+            <h3 style='margin-top: 0; color: #667eea;'>Login Credentials</h3>
+            <table style='width: 100%; border-collapse: collapse;'>
+                <tr style='border-bottom: 1px solid #ddd;'>
+                    <td style='padding: 8px; font-weight: bold;'>Username:</td>
+                    <td style='padding: 8px;'><strong style='color: #333; font-size: 16px;'>{$username}</strong></td>
+                </tr>
+                <tr>
+                    <td style='padding: 8px; font-weight: bold;'>Password:</td>
+                    <td style='padding: 8px;'><strong style='color: #333; font-size: 16px;'>{$password}</strong></td>
+                </tr>
+            </table>
+        </div>
+        
+        <div style='text-align: center; margin: 30px 0;'>
+            <a href='{$login_url}' style='display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;'>Login Now</a>
+        </div>
+        
+        <div style='background: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin: 20px 0;'>
+            <p style='margin: 0;'><strong>⚠️ Security Note:</strong></p>
+            <ul style='margin: 10px 0; padding-left: 20px;'>
+                <li>Please change your password immediately after first login</li>
+                <li>Keep your credentials secure and do not share them</li>
+                <li>If you did not expect this email, please contact your administrator</li>
+            </ul>
+        </div>
+        
+        <p style='margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; color: #777; font-size: 14px;'>
+            <strong>Next Steps:</strong><br>
+            1. Click the \"Login Now\" button above<br>
+            2. Enter your credentials<br>
+            3. Change your password in Settings<br>
+            4. Start using the system
+        </p>
+        
+        <hr style='border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;'>
+        
+        <p style='margin: 0; color: #777; font-size: 12px; text-align: center;'>
+            This is an automated email from QR Attendance System.<br>
+            Please do not reply to this message.
+        </p>
     </div>
 </body>
 </html>";
+    }
+    
+    /**
+     * Staff account email template (Plain Text)
+     */
+    private function getStaffAccountTextTemplate($name, $username, $password, $login_url) {
+        return "Welcome to QR Attendance System
+
+Dear {$name},
+
+Your staff account has been successfully created for the QR Attendance System.
+
+LOGIN CREDENTIALS:
+Username: {$username}
+Password: {$password}
+
+Login URL: {$login_url}
+
+SECURITY NOTE:
+- Please change your password immediately after first login
+- Keep your credentials secure and do not share them
+- If you did not expect this email, please contact your administrator
+
+Next Steps:
+1. Visit the login URL above
+2. Enter your credentials
+3. Change your password in Settings
+4. Start using the system
+
+This is an automated email from QR Attendance System.
+Please do not reply to this message.";
     }
 }
 ?>

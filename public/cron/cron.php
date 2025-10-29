@@ -322,6 +322,30 @@ function run_backup($pdo) {
 // -----------------------------------------------------------------------------
 // Programmatic dispatcher (for compatibility wrappers)
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Student Promotion (from promote_students.php)
+// -----------------------------------------------------------------------------
+function run_promote($pdo) {
+    cron_log('CRON_PROMOTE', 'Starting student promotion...');
+    try {
+        require_once __DIR__ . '/../admin/api/promote_students.php';
+        $api = new StudentPromotionAPI();
+        $result = $api->promoteByDate();
+        
+        if ($result['success']) {
+            cron_log('CRON_PROMOTE', "Success: {$result['message']}");
+            cron_log('CRON_PROMOTE', "Promoted: {$result['promoted']}, Graduated: {$result['graduated']}, Unchanged: {$result['unchanged']}");
+            return 0;
+        } else {
+            cron_log('CRON_PROMOTE', "FAILED: {$result['message']}");
+            return 1;
+        }
+    } catch (Exception $e) {
+        cron_log('CRON_PROMOTE', 'FATAL: ' . $e->getMessage());
+        return 1;
+    }
+}
+
 function cron_dispatch($action, $opt = null) {
     global $pdo;
     $action = strtolower(trim((string)$action));
@@ -333,13 +357,16 @@ function cron_dispatch($action, $opt = null) {
                 return run_cleanup($pdo);
             case 'backup':
                 return run_backup($pdo);
+            case 'promote':
+                return run_promote($pdo);
             case 'all':
                 $ec1 = run_absent($pdo);
                 $ec2 = run_cleanup($pdo);
                 $ec3 = run_backup($pdo);
-                return ($ec1 || $ec2 || $ec3) ? 1 : 0;
+                $ec4 = run_promote($pdo);
+                return ($ec1 || $ec2 || $ec3 || $ec4) ? 1 : 0;
             default:
-                echo "Usage: php cron.php [absent [morning|evening] | cleanup | backup | all]\n";
+                echo "Usage: php cron.php [absent [morning|evening] | cleanup | backup | promote | all]\n";
                 return 2;
         }
     } catch (Exception $e) {
@@ -352,8 +379,12 @@ function cron_dispatch($action, $opt = null) {
 // CLI entry
 // -----------------------------------------------------------------------------
 if (php_sapi_name() === 'cli' && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
-    $action = $argv[1] ?? 'all';
+    $action = $argv[1] ?? '';
     $opt = $argv[2] ?? null;
+    if (empty($action)) {
+        echo "Usage: php cron.php [absent [morning|evening] | cleanup | backup | promote | all]\n";
+        exit(2);
+    }
     $code = cron_dispatch($action, $opt);
     exit($code);
 }
