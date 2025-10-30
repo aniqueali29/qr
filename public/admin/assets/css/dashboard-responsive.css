@@ -1,0 +1,380 @@
+/**
+ * Dashboard Responsive CSS
+ * Ensures the dashboard is fully responsive on all devices
+ */
+
+/* Mobile First Approach - Base styles for small devices */
+
+/* Stat Cards Responsive */
+@media (max-width: 575.98px) {
+    /* Stack stat cards vertically on very small devices */
+    .col-6.mb-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    /* Reduce padding on cards */
+    .card-body {
+        padding: 1rem !important;
+    }
+    
+    /* Smaller font sizes for mobile */
+    .card-title {
+        font-size: 1rem !important;
+    }
+    
+    h4.card-title {
+        font-size: 1.25rem !important;
+    }
+    
+    /* Hide some secondary info on very small screens */
+    .card .dropdown {
+        position: relative;
+    }
+    
+    /* Make program distribution list more compact */
+    #program-distribution-list li {
+        margin-bottom: 0.75rem !important;
+    }
+    
+    /* Responsive welcome section */
+    .col-sm-5.text-center {
+        display: none !important; /* Hide illustration on very small screens */
+    }
+    
+    .col-sm-7 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
+
+/* Small devices (landscape phones, 576px and up) */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    /* Allow 2 cards per row */
+    .programs.col-6,
+    .sections.col-6 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+    
+    /* Adjust chart heights */
+    #totalRevenueChart,
+    #orderStatisticsChart {
+        height: 250px !important;
+    }
+    
+    /* Stack order statistics vertically */
+    .order-statistics .d-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+}
+
+/* Medium devices (tablets, 768px and up) */
+@media (min-width: 768px) and (max-width: 991.98px) {
+    /* Adjust grid for tablets */
+    .col-md-6 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+    
+    .col-md-8 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    .col-md-4 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    /* Stack charts vertically */
+    .total-revenue {
+        order: 1;
+    }
+    
+    .profile-report {
+        order: 2;
+    }
+    
+    /* Adjust avatar sizes */
+    .avatar {
+        width: 38px;
+        height: 38px;
+    }
+    
+    .avatar-sm {
+        width: 32px;
+        height: 32px;
+    }
+}
+
+/* Large devices (desktops, 992px and up) */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    /* Fine-tune spacing */
+    .container-xxl {
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+    
+    /* Adjust chart container */
+    #totalRevenueChart {
+        height: 280px !important;
+    }
+}
+
+/* Extra large devices (large desktops, 1200px and up) */
+@media (min-width: 1200px) {
+    /* Optimal spacing for large screens */
+    .mb-6 {
+        margin-bottom: 1.5rem !important;
+    }
+}
+
+/* Responsive Chart Adjustments */
+@media (max-width: 991.98px) {
+    /* Make charts responsive */
+    .apexcharts-canvas {
+        max-width: 100% !important;
+    }
+    
+    /* Stack attendance overview tabs */
+    .nav-pills {
+        flex-wrap: wrap;
+    }
+    
+    .nav-pills .nav-item {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Staff and Sessions Cards Responsive */
+@media (max-width: 767.98px) {
+    /* Stack staff and sessions cards on mobile */
+    .col-md-6.col-lg-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    /* Adjust spacing in staff/sessions lists */
+    #recent-staff-list li,
+    #active-sessions-list li {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .user-progress {
+        margin-top: 0.5rem;
+        margin-left: 0 !important;
+    }
+}
+
+/* Responsive Typography */
+@media (max-width: 575.98px) {
+    h5.card-title {
+        font-size: 0.9rem !important;
+    }
+    
+    h6 {
+        font-size: 0.85rem !important;
+    }
+    
+    small,
+    .small {
+        font-size: 0.75rem !important;
+    }
+    
+    /* Compact badges */
+    .badge {
+        font-size: 0.7rem !important;
+        padding: 0.25rem 0.5rem !important;
+    }
+}
+
+/* Responsive Tables and Lists */
+@media (max-width: 767.98px) {
+    /* Improve list readability on mobile */
+    .d-flex.w-100 {
+        flex-direction: column;
+    }
+    
+    .d-flex.justify-content-between {
+        justify-content: flex-start !important;
+    }
+    
+    /* Adjust avatar spacing */
+    .avatar.me-3 {
+        margin-right: 0.75rem !important;
+    }
+}
+
+/* Responsive Welcome Card */
+@media (max-width: 991.98px) {
+    .col-xxl-8 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    .col-xxl-4 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
+
+/* Dropdown Menu Responsive */
+@media (max-width: 575.98px) {
+    .dropdown-menu {
+        min-width: 10rem !important;
+        font-size: 0.85rem !important;
+    }
+    
+    .dropdown-item {
+        padding: 0.5rem 1rem !important;
+    }
+}
+
+/* Chart Container Responsive */
+@media (max-width: 767.98px) {
+    .row-bordered > [class*='col-']:not(:last-child) {
+        border-right: 0 !important;
+        border-bottom: 1px solid #d9dee3;
+    }
+    
+    .col-lg-8,
+    .col-lg-4 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
+
+/* Improve Touch Targets for Mobile */
+@media (max-width: 767.98px) {
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    .dropdown-toggle {
+        padding: 0.5rem !important;
+    }
+    
+    /* Larger clickable areas for cards */
+    .card-header .dropdown button {
+        padding: 0.5rem !important;
+    }
+}
+
+/* Responsive Grid Gap */
+@media (max-width: 575.98px) {
+    .row {
+        margin-left: -0.5rem;
+        margin-right: -0.5rem;
+    }
+    
+    .row > * {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+}
+
+/* Landscape Mobile Orientation */
+@media (max-height: 575.98px) and (orientation: landscape) {
+    .card-body {
+        padding: 0.75rem !important;
+    }
+    
+    .mb-6 {
+        margin-bottom: 0.75rem !important;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .dropdown,
+    .btn,
+    footer {
+        display: none !important;
+    }
+    
+    .card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    
+    .row {
+        display: block !important;
+    }
+    
+    .col-md-6,
+    .col-lg-4,
+    .col-xxl-8 {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+}
+
+/* Dark Mode Responsive Adjustments (if applicable) */
+@media (prefers-color-scheme: dark) {
+    .card {
+        box-shadow: 0 2px 6px 0 rgba(0, 0, 0, 0.3);
+    }
+}
+
+/* Accessibility Improvements */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Fix for overflow issues on small screens */
+@media (max-width: 575.98px) {
+    .container-xxl,
+    .content-wrapper {
+        overflow-x: hidden;
+    }
+    
+    /* Prevent horizontal scroll */
+    body {
+        overflow-x: hidden;
+    }
+}
+
+/* Responsive Flex Utilities */
+@media (max-width: 767.98px) {
+    .d-flex.gap-11 {
+        gap: 0.5rem !important;
+        flex-wrap: wrap;
+    }
+    
+    .flex-md-row {
+        flex-direction: column !important;
+    }
+}
+
+/* Custom responsive breakpoints for stats */
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .order-0,
+    .order-1,
+    .order-2,
+    .order-3 {
+        order: initial !important;
+    }
+}
+
+/* Ensure images are responsive */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Responsive padding for content wrapper */
+@media (max-width: 575.98px) {
+    .content-wrapper .container-p-y {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+    }
+}
+

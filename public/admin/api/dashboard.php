@@ -59,6 +59,24 @@ if (isset($_GET['action'])) {
                     INNER JOIN students s ON p.code = s.program
                 ")->fetchColumn();
                 
+                // Staff statistics
+                $totalStaff = $pdo->query("SELECT COUNT(*) FROM users WHERE role IN ('staff', 'admin')")->fetchColumn();
+                $activeStaff = $pdo->query("SELECT COUNT(*) FROM users WHERE role IN ('staff', 'admin') AND is_active = 1")->fetchColumn();
+                
+                // Session/Batch statistics
+                $totalSessions = 0;
+                $activeSessions = 0;
+                try {
+                    // Check if enrollment_sessions table exists
+                    $tableCheck = $pdo->query("SHOW TABLES LIKE 'enrollment_sessions'")->rowCount();
+                    if ($tableCheck > 0) {
+                        $totalSessions = $pdo->query("SELECT COUNT(*) FROM enrollment_sessions")->fetchColumn();
+                        $activeSessions = $pdo->query("SELECT COUNT(*) FROM enrollment_sessions WHERE is_active = 1")->fetchColumn();
+                    }
+                } catch (Exception $e) {
+                    error_log("Session stats error: " . $e->getMessage());
+                }
+                
                 $response = [
                     'success' => true,
                     'data' => [
@@ -68,6 +86,10 @@ if (isset($_GET['action'])) {
                         'presentToday' => (int)$todayAttendance,
                         'totalAttendance' => (int)$totalAttendance,
                         'activePrograms' => (int)$activePrograms,
+                        'totalStaff' => (int)$totalStaff,
+                        'activeStaff' => (int)$activeStaff,
+                        'totalSessions' => (int)$totalSessions,
+                        'activeSessions' => (int)$activeSessions,
                         'systemStatus' => 'ONLINE'
                     ]
                 ];
@@ -210,6 +232,7 @@ if (isset($_GET['action'])) {
                         year_level,
                         COUNT(id) as student_count
                     FROM students
+                    WHERE is_active = 1
                     GROUP BY year_level
                     ORDER BY year_level ASC
                 ");
@@ -219,6 +242,86 @@ if (isset($_GET['action'])) {
                     'success' => true,
                     'data' => $enrollment
                 ];
+                break;
+            
+            case 'recent-staff':
+                // Get recent staff activities (last logins)
+                $stmt = $pdo->query("
+                    SELECT 
+                        id,
+                        username,
+                        role,
+                        last_login,
+                        is_active
+                    FROM users
+                    WHERE role IN ('staff', 'admin', 'superadmin')
+                    ORDER BY last_login DESC
+                    LIMIT 5
+                ");
+                $staff = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Sanitize output
+                $sanitized = array_map(function($item) {
+                    return [
+                        'id' => (int)($item['id'] ?? 0),
+                        'username' => htmlspecialchars($item['username'] ?? '', ENT_QUOTES, 'UTF-8'),
+                        'role' => htmlspecialchars($item['role'] ?? '', ENT_QUOTES, 'UTF-8'),
+                        'last_login' => $item['last_login'] ?? '',
+                        'is_active' => (int)($item['is_active'] ?? 0)
+                    ];
+                }, $staff);
+                
+                $response = [
+                    'success' => true,
+                    'data' => $sanitized
+                ];
+                break;
+            
+            case 'active-sessions':
+                // Get active enrollment sessions
+                try {
+                    $stmt = $pdo->query("
+                        SELECT 
+                            s.id,
+                            s.code,
+                            s.label,
+                            s.term,
+                            s.year,
+                            s.is_active,
+                            COUNT(st.id) as student_count
+                        FROM enrollment_sessions s
+                        LEFT JOIN students st ON st.enrollment_session_id = s.id AND st.is_active = 1
+                        WHERE s.is_active = 1
+                        GROUP BY s.id
+                        ORDER BY s.year DESC, s.term DESC
+                        LIMIT 5
+                    ");
+                    $sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    // Sanitize output
+                    $sanitized = array_map(function($item) {
+                        return [
+                            'id' => (int)($item['id'] ?? 0),
+                            'code' => htmlspecialchars($item['code'] ?? '', ENT_QUOTES, 'UTF-8'),
+                            'label' => htmlspecialchars($item['label'] ?? '', ENT_QUOTES, 'UTF-8'),
+                            'term' => htmlspecialchars($item['term'] ?? '', ENT_QUOTES, 'UTF-8'),
+                            'year' => (int)($item['year'] ?? 0),
+                            'is_active' => (int)($item['is_active'] ?? 0),
+                            'student_count' => (int)($item['student_count'] ?? 0)
+                        ];
+                    }, $sessions);
+                    
+                    $response = [
+                        'success' => true,
+                        'data' => $sanitized
+                    ];
+                } catch (Exception $e) {
+                    // Table might not exist
+                    $response = [
+                        'success' => true,
+                        'data' => []
+                    ];
+                }
                 break;
 
             case 'growth-metrics':

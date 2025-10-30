@@ -126,7 +126,7 @@ try {
 
 $pageTitle = "Dashboard";
 $currentPage = "index";
-$pageCSS = ['vendor/libs/apex-charts/apex-charts.css'];
+$pageCSS = ['vendor/libs/apex-charts/apex-charts.css', 'css/dashboard-responsive.css'];
 $pageJS = ['vendor/libs/apex-charts/apexcharts.js', 'js/dashboards-analytics.js'];
 
 include 'partials/header.php';
@@ -537,6 +537,133 @@ include 'partials/navbar.php';
             </div>
             <!--/ Recent Activity -->
         </div>
+        
+        <!-- New Row for Staff and Sessions -->
+        <div class="row">
+            <!-- Staff Overview -->
+            <div class="col-md-6 col-lg-6 mb-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex align-items-center justify-content-between">
+                        <h5 class="card-title m-0 me-2">Staff Overview</h5>
+                        <div class="dropdown">
+                            <button class="btn text-body-secondary p-0" type="button" id="staffOverview" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <i class="icon-base bx bx-dots-vertical-rounded icon-lg"></i>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="staffOverview">
+                                <a class="dropdown-item" href="javascript:void(0);" onclick="window.location.href='settings.php?tab=staff'">Manage Staff</a>
+                                <a class="dropdown-item" href="javascript:void(0);" onclick="refreshStaffList()">Refresh</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar me-3">
+                                    <span class="avatar-initial rounded bg-label-success">
+                                        <i class="icon-base bx bx-user-check icon-lg text-success"></i>
+                                    </span>
+                                </div>
+                                <div>
+                                    <p class="mb-0">Total Staff</p>
+                                    <h4 class="mb-0" id="total-staff">0</h4>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar me-3">
+                                    <span class="avatar-initial rounded bg-label-primary">
+                                        <i class="icon-base bx bx-user icon-lg text-primary"></i>
+                                    </span>
+                                </div>
+                                <div>
+                                    <p class="mb-0">Active</p>
+                                    <h4 class="mb-0" id="active-staff">0</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border-top pt-4">
+                            <h6 class="mb-3">Recent Staff Activity</h6>
+                            <ul class="p-0 m-0" id="recent-staff-list">
+                                <li class="d-flex align-items-center mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar avatar-sm me-3">
+                                            <span class="avatar-initial rounded bg-label-secondary">
+                                                <i class="icon-base bx bx-info-circle"></i>
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <small class="text-muted">Loading staff data...</small>
+                                        </div>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!--/ Staff Overview -->
+            
+            <!-- Sessions/Batches Overview -->
+            <div class="col-md-6 col-lg-6 mb-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex align-items-center justify-content-between">
+                        <h5 class="card-title m-0 me-2">Active Sessions/Batches</h5>
+                        <div class="dropdown">
+                            <button class="btn text-body-secondary p-0" type="button" id="sessionsOverview" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <i class="icon-base bx bx-dots-vertical-rounded icon-lg"></i>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="sessionsOverview">
+                                <a class="dropdown-item" href="sessions.php">Manage Sessions</a>
+                                <a class="dropdown-item" href="javascript:void(0);" onclick="refreshSessionsList()">Refresh</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar me-3">
+                                    <span class="avatar-initial rounded bg-label-warning">
+                                        <i class="icon-base bx bx-calendar icon-lg text-warning"></i>
+                                    </span>
+                                </div>
+                                <div>
+                                    <p class="mb-0">Total Sessions</p>
+                                    <h4 class="mb-0" id="total-sessions">0</h4>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar me-3">
+                                    <span class="avatar-initial rounded bg-label-info">
+                                        <i class="icon-base bx bx-calendar-check icon-lg text-info"></i>
+                                    </span>
+                                </div>
+                                <div>
+                                    <p class="mb-0">Active</p>
+                                    <h4 class="mb-0" id="active-sessions">0</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border-top pt-4">
+                            <h6 class="mb-3">Current Sessions</h6>
+                            <ul class="p-0 m-0" id="active-sessions-list">
+                                <li class="d-flex align-items-center mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar avatar-sm me-3">
+                                            <span class="avatar-initial rounded bg-label-secondary">
+                                                <i class="icon-base bx bx-info-circle"></i>
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <small class="text-muted">Loading sessions data...</small>
+                                        </div>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!--/ Sessions/Batches Overview -->
+        </div>
     </div>
     <!-- / Content -->
     
@@ -784,6 +911,8 @@ function loadDashboardData() {
     loadAttendanceTrends();
     loadProgramDistribution();
     loadRecentActivity();
+    loadStaffList();
+    loadActiveSessions();
 }
 
 function updateStatsCards(data) {
@@ -791,6 +920,20 @@ function updateStatsCards(data) {
     document.getElementById('today-attendance').textContent = data.presentToday || 0;
     document.getElementById('total-programs').textContent = data.activePrograms || 0;
     document.getElementById('total-sections').textContent = data.totalSections || 0;
+    
+    // Update new stat cards
+    if (document.getElementById('total-staff')) {
+        document.getElementById('total-staff').textContent = data.totalStaff || 0;
+    }
+    if (document.getElementById('active-staff')) {
+        document.getElementById('active-staff').textContent = data.activeStaff || 0;
+    }
+    if (document.getElementById('total-sessions')) {
+        document.getElementById('total-sessions').textContent = data.totalSessions || 0;
+    }
+    if (document.getElementById('active-sessions')) {
+        document.getElementById('active-sessions').textContent = data.activeSessions || 0;
+    }
     
     // Update change indicators
     updateChangeIndicator('students-change', data.students_change);
@@ -1168,6 +1311,212 @@ function refreshCharts() {
 
 function refreshActivity() {
     loadRecentActivity();
+}
+
+function loadStaffList() {
+    // BUG FIX #4: Add timeout to prevent browser hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+        logger.warn('Staff list request timed out');
+        controller.abort();
+    }, DASHBOARD_CONFIG.API_TIMEOUT);
+    
+    fetch(`${DASHBOARD_CONFIG.BASE_API_PATH}?action=recent-staff`, {
+        signal: controller.signal
+    })
+        .then(response => {
+            clearTimeout(timeoutId);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                updateStaffList(data.data);
+            } else {
+                logger.error('API error:', data.message);
+                updateStaffList([]);
+            }
+        })
+        .catch(error => {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                logger.error('Staff list request was aborted due to timeout');
+            } else {
+                logger.error('Error loading staff list:', error);
+            }
+            updateStaffList([]);
+        });
+}
+
+function updateStaffList(staff) {
+    const listElement = document.getElementById('recent-staff-list');
+    if (listElement) {
+        listElement.innerHTML = '';
+        if (staff && staff.length > 0) {
+            staff.forEach(member => {
+                const listItem = document.createElement('li');
+                listItem.className = 'd-flex align-items-center mb-3';
+                
+                const roleColors = {
+                    'superadmin': 'danger',
+                    'admin': 'primary',
+                    'staff': 'info'
+                };
+                const roleColor = roleColors[member.role] || 'secondary';
+                const statusIcon = member.is_active ? 'bx-check-circle' : 'bx-x-circle';
+                const statusColor = member.is_active ? 'success' : 'secondary';
+                
+                const lastLogin = member.last_login ? new Date(member.last_login).toLocaleDateString() : 'Never';
+                
+                listItem.innerHTML = `
+                    <div class="d-flex w-100 align-items-center">
+                        <div class="d-flex justify-content-between w-100">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar avatar-sm me-3">
+                                    <span class="avatar-initial rounded bg-label-${roleColor}">
+                                        <i class="icon-base bx bx-user"></i>
+                                    </span>
+                                </div>
+                                <div>
+                                    <h6 class="mb-0">${member.username || 'Unknown'}</h6>
+                                    <small class="text-muted">Last login: ${lastLogin}</small>
+                                </div>
+                            </div>
+                            <div class="user-progress">
+                                <span class="badge bg-label-${roleColor}">${member.role}</span>
+                                <i class="icon-base bx ${statusIcon} text-${statusColor} ms-2"></i>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                listElement.appendChild(listItem);
+            });
+        } else {
+            listElement.innerHTML = `
+                <li class="d-flex align-items-center mb-3">
+                    <div class="d-flex align-items-center">
+                        <div class="avatar avatar-sm me-3">
+                            <span class="avatar-initial rounded bg-label-secondary">
+                                <i class="icon-base bx bx-info-circle"></i>
+                            </span>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">No staff records</h6>
+                            <small class="text-muted">No staff activity found</small>
+                        </div>
+                    </div>
+                </li>
+            `;
+        }
+    }
+}
+
+function loadActiveSessions() {
+    // BUG FIX #4: Add timeout to prevent browser hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+        logger.warn('Active sessions request timed out');
+        controller.abort();
+    }, DASHBOARD_CONFIG.API_TIMEOUT);
+    
+    fetch(`${DASHBOARD_CONFIG.BASE_API_PATH}?action=active-sessions`, {
+        signal: controller.signal
+    })
+        .then(response => {
+            clearTimeout(timeoutId);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                updateSessionsList(data.data);
+            } else {
+                logger.error('API error:', data.message);
+                updateSessionsList([]);
+            }
+        })
+        .catch(error => {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                logger.error('Active sessions request was aborted due to timeout');
+            } else {
+                logger.error('Error loading active sessions:', error);
+            }
+            updateSessionsList([]);
+        });
+}
+
+function updateSessionsList(sessions) {
+    const listElement = document.getElementById('active-sessions-list');
+    if (listElement) {
+        listElement.innerHTML = '';
+        if (sessions && sessions.length > 0) {
+            sessions.forEach(session => {
+                const listItem = document.createElement('li');
+                listItem.className = 'd-flex align-items-center mb-3';
+                
+                const termColors = {
+                    'Spring': 'success',
+                    'Summer': 'warning',
+                    'Fall': 'primary',
+                    'Winter': 'info'
+                };
+                const termColor = termColors[session.term] || 'secondary';
+                // Compute batch code: prefer explicit code; fallback to first letter of term + year
+                const batchCode = session.code || `${(session.term ? session.term.charAt(0) : 'N')}${session.year || ''}`;
+                
+                listItem.innerHTML = `
+                    <div class="d-flex w-100 align-items-center">
+                        <div class="d-flex justify-content-between w-100">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar avatar-sm me-3">
+                                    <span class="avatar-initial rounded bg-label-${termColor}">
+                                        <i class="icon-base bx bx-calendar"></i>
+                                    </span>
+                                </div>
+                                <div>
+                                    <h6 class="mb-0">${session.label || session.code || 'Unknown'}</h6>
+                                    <small class="text-muted">${session.student_count || 0} students</small>
+                                </div>
+                            </div>
+                            <div class="user-progress">
+                                <span class="badge bg-label-${termColor}">${batchCode}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                listElement.appendChild(listItem);
+            });
+        } else {
+            listElement.innerHTML = `
+                <li class="d-flex align-items-center mb-3">
+                    <div class="d-flex align-items-center">
+                        <div class="avatar avatar-sm me-3">
+                            <span class="avatar-initial rounded bg-label-secondary">
+                                <i class="icon-base bx bx-info-circle"></i>
+                            </span>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">No active sessions</h6>
+                            <small class="text-muted">Create sessions to see them here</small>
+                        </div>
+                    </div>
+                </li>
+            `;
+        }
+    }
+}
+
+function refreshStaffList() {
+    loadStaffList();
+}
+
+function refreshSessionsList() {
+    loadActiveSessions();
 }
 
 // Fallback showAlert function if adminUtils is not available
